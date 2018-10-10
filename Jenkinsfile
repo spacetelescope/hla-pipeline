@@ -14,7 +14,7 @@ PYTEST = "pytest --basetemp=tests_output --junitxml results.xml --bigdata --remo
 
 // The minimum modules required to execute setup.py at all
 BASE_DEPS = "astropy numpy"
-TEST_DEPS = "pytest pytest-remotedata crds"
+TEST_DEPS = "pytest pytest-remotedata crds ci_watson"
 
 // Conda needs explicit dependencies listed
 DEPS = "fitsblender graphviz nictools numpydoc \
@@ -80,7 +80,7 @@ for (numpy_ver in matrix_numpy) {
     install.env_vars = ['BUILD_MATRIX_SUFFIX=' + MATRIX_SUFFIX,
                         'BUILD_MATRIX_ID=' + matrix_id,
                         'HOME=./',
-                        'TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory/']
+                        'TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory']
     install.build_cmds = [
         // Install python @ version
         "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON}",
