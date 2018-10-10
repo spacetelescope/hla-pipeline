@@ -1,6 +1,4 @@
-import os
-
-from .utils import astrometric_utils
+from hlapipeline.utils import astrometric_utils
 
 from drizzlepac import tweakreg
 
