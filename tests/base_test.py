@@ -7,8 +7,12 @@ import numpy as np
 import stwcs
 from stsci.tools import fileutil
 
-from ci_watson.artifactory_helpers import check_url, get_bigdata_root
+from ci_watson.artifactory_helpers import get_bigdata_root
 from ci_watson.hst_helpers import raw_from_asn, ref_from_image, download_crds
+try:
+    from ci_watson.artifactory_helpers import check_url
+except ImportError:
+    from ci_watson.artifactory_helpers import _is_url as check_url
 
 from base_classes import BaseTest
 
