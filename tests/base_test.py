@@ -1,5 +1,6 @@
 import os
 import pytest
+import math
 
 from astropy.io import fits
 
