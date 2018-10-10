@@ -78,7 +78,9 @@ for (numpy_ver in matrix_numpy) {
     install.nodetype = "linux"
     install.name = MATRIX_TITLE
     install.env_vars = ['BUILD_MATRIX_SUFFIX=' + MATRIX_SUFFIX,
-                        'BUILD_MATRIX_ID=' + matrix_id]
+                        'BUILD_MATRIX_ID=' + matrix_id,
+                        'HOME=./',
+                        'TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory/']
     install.build_cmds = [
         // Install python @ version
         "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON}",
