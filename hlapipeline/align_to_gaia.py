@@ -1,4 +1,4 @@
-from hlapipeline.utils import astrometric_utils
+import hlapipeline.utils.astrometric_utils as hlautils
 
 from drizzlepac import tweakreg
 
@@ -18,7 +18,7 @@ def align(expnames, **kwargs):
     searchunits = kwargs.get('searchunits', 'arcseconds')
     ref_cat_file = kwargs.get('output', None)
 
-    gaia_catalog = astrometric_utils.create_astrometric_catalog(expnames, **kwargs)
+    gaia_catalog = hlautils.create_astrometric_catalog(expnames, **kwargs)
     gaia_catalog.write(ref_cat_file, format='ascii.no_header')
 
     if len(gaia_catalog) > 6:
