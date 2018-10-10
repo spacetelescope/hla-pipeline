@@ -14,7 +14,7 @@ PYTEST = "pytest --basetemp=tests_output --junitxml results.xml --bigdata --remo
 
 // The minimum modules required to execute setup.py at all
 BASE_DEPS = "astropy numpy"
-TEST_DEPS = "pytest pytest-remotedata crds ci_watson"
+TEST_DEPS = "pytest pytest-remotedata crds ci_watson stwcs"
 
 // Conda needs explicit dependencies listed
 DEPS = "fitsblender graphviz nictools numpydoc \
