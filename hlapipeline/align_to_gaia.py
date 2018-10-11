@@ -1,3 +1,4 @@
+import hlapipeline
 import hlapipeline.utils.astrometric_utils as hlautils
 
 from drizzlepac import tweakreg
