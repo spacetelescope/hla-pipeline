@@ -6,7 +6,7 @@ if (utils.scm_checkout()) return
 // Globals
 PIP_INST = "pip install --upgrade --upgrade-strategy 'only-if-needed'"
 CONDA_CHANNEL = "http://ssb.stsci.edu/astroconda"
-CONDA_ARGS = "-y -q -c ${CONDA_CHANNEL} stsci-hst"
+CONDA_ARGS = "-y -q -c ${CONDA_CHANNEL}"
 CONDA_CREATE = "conda create ${CONDA_ARGS}"
 CONDA_INST = "conda install ${CONDA_ARGS}"
 PY_SETUP = "python setup.py"
@@ -82,7 +82,7 @@ for (numpy_ver in matrix_numpy) {
                         'TEST_BIGDATA=https://bytesalad.stsci.edu/artifactory']
     install.build_cmds = [
         // Install python @ version
-        "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON}",
+        "${CONDA_CREATE} -n ${python_ver} ${DEPS_PYTHON} stsci-hst",
 
         // Install custom required packages @ version
         "${WRAPPER} ${PIP_INST} ${DEPS_EX}",
