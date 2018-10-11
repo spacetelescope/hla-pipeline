@@ -19,7 +19,7 @@ def align(expnames, **kwargs):
     wcsname = kwargs.get('wcsname', "TWEAK_GAIA")
     searchrad = kwargs.get('searchrad', 15.0)
     searchunits = kwargs.get('searchunits', 'arcseconds')
-    threshold = kwargs.get('threshold', 500.0)
+    threshold = kwargs.get('threshold', 1000.0)
     conv_width = kwargs.get('conv_width', 3.5)
 
     gaia_catalog = hlautils.create_astrometric_catalog(expnames, **kwargs)
