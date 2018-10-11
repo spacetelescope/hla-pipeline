@@ -15,7 +15,7 @@ requirements = ['Click>=6.0', ]
 
 setup_requirements = ['pytest-runner', ]
 
-test_requirements = ['pytest', ]
+test_requirements = ['pytest', 'requests_mock', 'ci_watson']
 
 setup(
     author="Warren J. Hack",
@@ -45,7 +45,7 @@ setup(
     include_package_data=True,
     keywords='hlapipeline',
     name='hlapipeline',
-    packages=find_packages(include=['hlapipeline']),
+    packages=find_packages(),
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,

@@ -3,9 +3,22 @@ include CONTRIBUTING.rst
 include HISTORY.rst
 include LICENSE
 include README.rst
+include RELIC-INFO
 
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
+
+recursive-include relic *.* *.py
+recursive-include hlapipeline *.fits
+recursive-include hlapipeline *.inc
+recursive-include hlapipeline *.json
+recursive-include hlapipeline *.txt
+recursive-include hlapipeline *.cfg
+recursive-include hlapipeline *.csv
+recursive-include hlapipeline *.yaml
+recursive-include hlapipeline *.asdf
+prune relic/relic/__pycache__
+prune relic/.git
