@@ -17,6 +17,7 @@ def align(expnames, **kwargs):
     searchrad = kwargs.get('searchrad', 15.0)
     searchunits = kwargs.get('searchunits', 'arcseconds')
     ref_cat_file = kwargs.get('output', None)
+    threshold = kwargs.get('threshold', 500.0)
 
     gaia_catalog = hlautils.create_astrometric_catalog(expnames, **kwargs)
     gaia_catalog.write(ref_cat_file, format='ascii.no_header')
@@ -33,6 +34,7 @@ def align(expnames, **kwargs):
                       see2dplot=False,
                       updatehdr=updatehdr,
                       wcsname=wcsname,
+                      threshold=threshold,
                       outshifts=shift_name,
                       outwcs = shift_name.replace('.txt','_wcs.fits'),
                       refcat=ref_cat_file,
