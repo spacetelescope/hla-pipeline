@@ -17,10 +17,10 @@ BASE_DEPS = "astropy numpy"
 TEST_DEPS = "pytest pytest-remotedata stwcs git+https://github.com/stsci-hack/ci_watson.git@fix_logic_in_compare"
 
 // Conda needs explicit dependencies listed
-DEPS = "fitsblender graphviz nictools numpydoc \
-        pytest pytest-remotedata pyregion \
+DEPS = "fitsblender graphviz nictools numpydoc matplotlib \
+        pytest pytest-remotedata pyregion photutils \
         scipy spherical-geometry sphinx sphinx_rtd_theme \
-        stsci_rtd_theme stsci.convolve stsci.image \
+        stsci_rtd_theme stsci.convolve stsci.image stsci.tools\
         stsci.imagemanip stsci.imagestats stsci.ndimage \
         stsci.skypac stsci.stimage stwcs setuptools python"
 
