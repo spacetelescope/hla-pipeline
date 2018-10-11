@@ -6,7 +6,7 @@ if (utils.scm_checkout()) return
 // Globals
 PIP_INST = "pip install --upgrade --upgrade-strategy 'only-if-needed'"
 CONDA_CHANNEL = "http://ssb.stsci.edu/astroconda"
-CONDA_ARGS = "-y -q -c ${CONDA_CHANNEL}"
+CONDA_ARGS = "-y -q -c ${CONDA_CHANNEL} stsci-hst"
 CONDA_CREATE = "conda create ${CONDA_ARGS}"
 CONDA_INST = "conda install ${CONDA_ARGS}"
 PY_SETUP = "python setup.py"
@@ -17,12 +17,11 @@ BASE_DEPS = "astropy numpy"
 TEST_DEPS = "pytest pytest-remotedata stwcs git+https://github.com/stsci-hack/ci_watson.git@fix_logic_in_compare"
 
 // Conda needs explicit dependencies listed
-DEPS = "fitsblender graphviz nictools numpydoc matplotlib \
-        pytest pytest-remotedata pyregion photutils \
-        scipy spherical-geometry sphinx sphinx_rtd_theme \
-        stsci_rtd_theme stsci.convolve stsci.image stsci.tools\
-        stsci.imagemanip stsci.imagestats stsci.ndimage \
-        stsci.skypac stsci.stimage stwcs setuptools python"
+DEPS = "fitsblender graphviz nictools numpydoc matplotlib drizzlepac\
+        pytest pytest-remotedata photutils \
+        scipy sphinx sphinx_rtd_theme \
+        stsci_rtd_theme stsci.tools\
+        stwcs setuptools python"
 
 matrix_python = ["3.6", "3.7"]
 matrix_astropy = [">=3.0.5"]
