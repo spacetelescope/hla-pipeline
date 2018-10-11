@@ -11,7 +11,11 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Click>=6.0', ]
+requirements = ['astropy', 'scipy', 'matplotlib', \
+                'pytest' ,'pytest-remotedata', 'photutils', \
+                'scipy', 'sphinx','sphinx_rtd_theme', \
+                'stsci_rtd_theme','stsci.tools',\
+                'stwcs','setuptools','python']
 
 setup_requirements = ['pytest-runner', ]
 
