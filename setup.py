@@ -15,7 +15,7 @@ requirements = ['astropy', 'scipy', 'matplotlib', \
                 'pytest' ,'pytest-remotedata', 'photutils', \
                 'scipy', 'sphinx','sphinx_rtd_theme', \
                 'stsci_rtd_theme','stsci.tools',\
-                'stwcs','setuptools','python']
+                'stwcs','setuptools']
 
 setup_requirements = ['pytest-runner', ]
 
