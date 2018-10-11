@@ -30,7 +30,6 @@ class BaseHLATest(BaseTest):
 
     refstr = 'jref'
     prevref = os.environ.get(refstr)
-    curdir = os.getcwd()
 
     ignore_keywords = ['origin', 'filename', 'date', 'iraf-tlm', 'fitsdate',
                        'upwtim', 'wcscdate', 'upwcsver', 'pywcsver',
@@ -79,8 +78,15 @@ class BaseHLATest(BaseTest):
                 continue
             if refsep not in ref_file:  # Local file
                 self.get_data('customRef', ref_file, docopy=docopy)
-            else:  # Download from FTP, if applicable
-                if self.use_ftp_crds:
+            else:
+                # Start by checking to see whether IRAF variable *ref/*tab
+                # has been added to os.environ
+                refdir, refname = ref_file.split(refsep)
+                if refdir not in os.environ or os.environ[refdir] != self.curdir+os.sep:
+                    os.environ[refdir] = self.curdir + os.sep
+
+                # Download from FTP, if applicable
+                if self.use_ftp_crds and refname not in os.listdir(self.curdir):
                     download_crds(ref_file, timeout=self.timeout)
         return filename
 
