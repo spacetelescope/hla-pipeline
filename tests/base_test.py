@@ -30,6 +30,7 @@ class BaseHLATest(BaseTest):
 
     refstr = 'jref'
     prevref = os.environ.get(refstr)
+    curdir = os.getcwd()
 
     ignore_keywords = ['origin', 'filename', 'date', 'iraf-tlm', 'fitsdate',
                        'upwtim', 'wcscdate', 'upwcsver', 'pywcsver',
@@ -50,7 +51,7 @@ class BaseHLATest(BaseTest):
         # HSTCAL cannot open remote CRDS on FTP but central storage is okay.
         # So use central storage if available to avoid FTP.
         if self.prevref is None or self.prevref.startswith(('ftp', 'http')):
-            os.environ[self.refstr] = os.getwcd() + os.sep
+            os.environ[self.refstr] = self.curdir + os.sep
             self.use_ftp_crds = True
 
         # Turn off Astrometry updates
