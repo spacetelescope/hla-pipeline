@@ -23,7 +23,7 @@ DEPS = "fitsblender graphviz nictools numpydoc matplotlib drizzlepac\
         stsci_rtd_theme stsci.tools\
         stwcs setuptools python"
 
-matrix_python = ["3.6", "3.7"]
+matrix_python = ["3.6"]#, "3.7"]
 matrix_astropy = [">=3.0.5"]
 matrix_numpy = [">=1.14", "==1.15.0rc1"]
 matrix = []
