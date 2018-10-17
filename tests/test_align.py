@@ -89,3 +89,28 @@ class TestAlignMosaic(BaseHLATest):
         rms_y = max(shift_file['col7'])
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
+
+    @pytest.mark.parameterize("input_filenames":[])
+    def test_align_single_visits(self,input_filenames):
+        """ Verify whether single-visit exposures can be aligned to an astrometric standard.
+
+        Characeteristics of this test:
+          * Input exposures include both ACS and WFC3 images of the same general field-of-view
+            of 47Tuc suitable for creating a combined mosaic using both instruments.
+        """
+        self.input_loc = 'base_tests'
+
+        self.curdir = os.getcwd()
+
+        for infile in input_filenames:
+            self.get_input_file(infile, docopy=True)
+            updatewcs.updatewcs(infile)
+
+        output_shift_file = 'test_single_visits_shifts.txt'
+        align_to_gaia.align(input_filenames, shift_name=output_shift_file)
+
+        shift_file = Table.read(output_shift_file, format='ascii')
+        rms_x = max(shift_file['col6'])
+        rms_y = max(shift_file['col7'])
+
+        assert (rms_x <= 0.25 and rms_y <= 0.25)
