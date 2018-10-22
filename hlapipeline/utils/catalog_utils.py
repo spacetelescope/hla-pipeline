@@ -17,7 +17,7 @@ from astropy.table import Table
 
 __all__ =['randomSelectFromCSV']
 
-def randomSelectFromCSV(tableName, numEntries, seed):
+def randomSelectFromCSV(tableName, numEntries, seedValue):
     """Function to extract random entries (lines) from a CSV file 
     
     Parameters
@@ -30,7 +30,7 @@ def randomSelectFromCSV(tableName, numEntries, seed):
     numEntries : int
         Number of entries/rows to extract from the master input CSV file
 
-    seed : int
+    seedValue : int
         Value used to initialize the random number generator for the
         selection of random entries
 
@@ -40,13 +40,16 @@ def randomSelectFromCSV(tableName, numEntries, seed):
         Astropy Table object
     """
 
+    # Initialize the random number generator
+    seed(seedValue)
+
     # Get the contents of the table
     dataTable = Table.read(tableName, format='ascii.csv')
     numRows   = len(dataTable)
 
     # Generate a sequence of integers the size of the table, and then 
     # obtain a random subset of the sequence with no duplicate selections
-    sequence = [i for i in range(numRows)]
+    sequence = list(range(numRows))
     subset   = sample(sequence, numEntries)
 
     # Extract the subset rows...
