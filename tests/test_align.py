@@ -86,3 +86,94 @@ class TestAlignMosaic(BaseHLATest):
         rms_y = max(shift_file['col7'])
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
+
+    def test_align_randomFields(self):
+        """ Process a large number of randomly selected fields which are defined in
+            an input ascii file (CSV).
+
+            Each field is used as input to determine if it can be aligned to an 
+            astrometric standard.  The success or fail status for each test is retained
+            as the overall success or fail statistic is the necessary output from
+            this test.
+        """
+
+        # Need to accommodate a pre-defined list existing in local store or Artifactory
+        # via the setting of the environment variable TEST_BIGDATA
+        #input_list_file= ['ACSList50.csv']
+        input_list_file = ['ACSList5.csv']
+
+        self.input_loc = 'master_lists'
+        self.curdir = os.getcwd()
+
+        numSuccess = 0
+        numAllDatasets = 0
+
+        for input_file in input_list_file:
+            # Obtain the full path to the file containing the dataset names
+            input_file_path = self.get_data(input_file)
+
+            # Read the file and extract a list of each dataset name in IPPSSOOT format
+            # which is either an association ID or an individual filename
+            dataset_list = get_dataset_list(input_file_path[0])
+
+            numAllDatasets += len(dataset_list)
+
+            # Reset the input location as the actual data will be obtained
+            # from the MAST archive via astroquery
+            self.input_loc = ''
+
+            # Process the dataset names in the list
+            #
+            # If the dataset name represents an association ID, the multiplicity 
+            # of images within the association need to be processed.  Otherwise,
+            # the dataset is a single image.
+            for dataset in dataset_list:
+                filenames = self.get_input_file(dataset, docopy=True)
+                print(filenames)
+                for infile in filenames:
+                    updatewcs.updatewcs(infile)
+  
+                try:
+                    output_shift_file = 'test_mosaic_shifts.txt'
+                    align_to_gaia.align(filenames, shift_name=output_shift_file)
+
+                    shift_file = Table.read(output_shift_file, format='ascii')
+                    rms_x = max(shift_file['col6'])
+                    rms_y = max(shift_file['col7'])
+
+                    if ((rms_x <= 0.25) and (rms_y <= 0.25)):
+                        numSuccess += 1
+
+                    # Clean up
+                    os.remove("test_mosaic_shifts.txt")
+
+                except ValueError:
+                    pass
+             
+        # Determine the percent success over all datasets processed
+        percentSuccess = numSuccess/numAllDatasets
+        print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess)
+ 
+        assert(percentSuccess >= 0.70)
+
+def get_dataset_list(filename):
+    """ Standalone function to read the master file list and get the dataset names"""
+
+    dataFromTable = Table.read(filename, format='ascii')
+    datasetIDs = dataFromTable['observationID'][:10]
+    asnIDs     = dataFromTable['asnID'][-10:]
+
+    datasetNames = []
+
+    # Determine if the data is part of an association or is an individual image
+    for imgid,asnid in zip(datasetIDs,asnIDs):
+
+        # If the asnID is the string NONE, this is an individual image,
+        # and it is necessary to get the individual image dataset name.  
+        # Otherwise, this is an association dataset, so just add the asnID.
+        if (asnid.upper() == "NONE"):
+            datasetNames.append(imgid)
+        else:
+            datasetNames.append(asnid)
+
+    return(datasetNames)
