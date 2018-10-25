@@ -140,7 +140,7 @@ class TestAlignMosaic(BaseHLATest):
         inputListFile = 'ACSList5.csv'
         
         # Desired number of random entries for testing
-        inputNumEntries = 3
+        inputNumEntries = 5
 
         # Seed for random number generator
         inputSeedValue = 1
@@ -194,9 +194,10 @@ class TestAlignMosaic(BaseHLATest):
         # the exception and keep going.
         for dataset in dataset_list:
 
+           print(dataset)
            try:
                shift_file = self.run_align([dataset])
-               x_shift = numpy.alltrue(numpy.isnan(data['col2']))
+               x_shift = numpy.alltrue(numpy.isnan(shift_file['col2']))
                rms_x = max(shift_file['col6'])
                rms_y = max(shift_file['col7'])
 
