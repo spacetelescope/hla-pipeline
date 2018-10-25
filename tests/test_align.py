@@ -1,5 +1,6 @@
 import os
 import pytest
+import numpy
 from astropy.table import Table
 
 from stwcs import updatewcs
@@ -97,11 +98,11 @@ class TestAlignMosaic(BaseHLATest):
             of the test.
         """
         #inputListFile = 'ACSWFC3List.csv'
-        inputListFile = 'ACSList1.csv'
+        inputListFile = 'ACSList50.csv'
         
         # Desired number of random entries for testing
         #inputNumEntries = 100
-        inputNumEntries = 1
+        inputNumEntries = 10
 
         # Seed for random number generator
         inputSeedValue = 1
@@ -110,7 +111,6 @@ class TestAlignMosaic(BaseHLATest):
         self.input_loc  = 'master_lists'
         self.curdir     = os.getcwd()
         input_file_path = self.get_data(inputListFile)
-        print('input: ', input_file_path[0])
 
         # Randomly select a subset of field names (each field represented by a row) from 
         # the master CSV file and return as an Astropy table
@@ -149,11 +149,6 @@ class TestAlignMosaic(BaseHLATest):
 
         numAllDatasets = len(dataset_list)
 
-        # Reset the input location as the actual data will be obtained
-        # from the MAST archive via astroquery
-        #self.curdir = os.getcwd()
-        #self.input_loc = ''
-
         # Process the dataset names in the list
         #
         # If the dataset name represents an association ID, the multiplicity 
@@ -163,23 +158,26 @@ class TestAlignMosaic(BaseHLATest):
         # If the "alignment" of a field/dataset fails for any reason, trap
         # the exception and keep going.
         for dataset in dataset_list:
-           #self.output_shift_file = 'test_random_mosaic_shifts.txt'
-           rms_x = 1.0
-           rms_y = 1.0
+           print('Dataset: ', dataset)
 
            try:
                shift_file = self.run_align([dataset])
+               x_shift = numpy.alltrue(numpy.isnan(data['col2']))
                rms_x = max(shift_file['col6'])
                rms_y = max(shift_file['col7'])
 
-               if ((rms_x <= 0.25) and (rms_y <= 0.25)):
+               if not x_shift and ((rms_x <= 0.25) and (rms_y <= 0.25)):
                    numSuccess += 1
-           except ValueError:
+                   print('NumSuccess: ', numSuccess)
+                   sys.stdout.flush()
+           #except ValueError:
+           except Exception:
                pass
 
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets
         print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
+        sys.stdout.flush()
  
         return percentSuccess
 
@@ -200,8 +198,8 @@ def get_dataset_list(tableName):
     """
 
     #dataFromTable = Table.read(filename, format='ascii')
-    datasetIDs = tableName['observationID'][:10]
-    asnIDs     = tableName['asnID'][-10:]
+    datasetIDs = tableName['observationID']
+    asnIDs     = tableName['asnID']
 
     datasetNames = []
 
