@@ -38,7 +38,7 @@ class TestAlignMosaic(BaseHLATest):
 
     ref_loc = ['truth']
 
-    def AAAtest_align_ngc188(self):
+    def test_align_ngc188(self):
         """ Verify whether NGC188 exposures can be aligned to an astrometric standard.
 
         Characeteristics of this test:
@@ -58,7 +58,7 @@ class TestAlignMosaic(BaseHLATest):
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
-    def AAAtest_align_47tuc(self):
+    def test_align_47tuc(self):
         """ Verify whether 47Tuc exposures can be aligned to an astrometric standard.
 
         Characeteristics of this test:
@@ -78,7 +78,7 @@ class TestAlignMosaic(BaseHLATest):
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
-    def AAAtest_astroquery(self):
+    def test_astroquery(self):
         """Verify that new astroquery interface will work"""
         self.curdir = os.getcwd()
         self.input_loc = ''
@@ -89,6 +89,8 @@ class TestAlignMosaic(BaseHLATest):
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
+    @pytest.mark.xfail
+    @pytest.mark.slow
     def test_align_randomFields(self):
         """ Wrapper to set up the test for aligning a large number of randomly
             selected fields (aka datasets) from a input ascii file (CSV).
@@ -97,12 +99,10 @@ class TestAlignMosaic(BaseHLATest):
             as well as implements the criterion for the overall success or failure
             of the test.
         """
-        #inputListFile = 'ACSWFC3List.csv'
         inputListFile = 'ACSList50.csv'
         
         # Desired number of random entries for testing
-        #inputNumEntries = 100
-        inputNumEntries = 10
+        inputNumEntries = 50
 
         # Seed for random number generator
         inputSeedValue = 1
@@ -128,10 +128,46 @@ class TestAlignMosaic(BaseHLATest):
 
         assert(percentSuccess >= 0.70)
 
+    @pytest.mark.xfail
+    def test_align_fewRandomFields(self):
+        """ Wrapper to set up the test for aligning a *FEW* randomly
+            selected fields (aka datasets) from a input ascii file (CSV).
+    
+            The wrapper provides the parameter settings for the underlying test, 
+            as well as implements the criterion for the overall success or failure
+            of the test.
+        """
+        inputListFile = 'ACSList5.csv'
+        
+        # Desired number of random entries for testing
+        inputNumEntries = 3
+
+        # Seed for random number generator
+        inputSeedValue = 1
+
+        # Obtain the full path to the file containing the dataset field names
+        self.input_loc  = 'master_lists'
+        self.curdir     = os.getcwd()
+        input_file_path = self.get_data(inputListFile)
+
+        # Randomly select a subset of field names (each field represented by a row) from 
+        # the master CSV file and return as an Astropy table
+        randomCandidateTable = catutils.randomSelectFromCSV(input_file_path[0], 
+            inputNumEntries, inputSeedValue)
+        print('table:', randomCandidateTable)
+
+        # Invoke the methods which will handle acquiring/downloading the data from 
+        # MAST and perform the alignment
+        percentSuccess = 0.0
+        try:
+            percentSuccess = self.align_randomFields (randomCandidateTable)
+        except Exception:
+            pass
+
+        assert(percentSuccess >= 0.70)
 
     def align_randomFields(self, randomTable):
-        """ Process a large number of randomly selected fields (aka datasets) stored 
-            in an Astropy table.
+        """ Process randomly selected fields (aka datasets) stored in an Astropy table.
 
             Each field is used as input to determine if it can be aligned to an 
             astrometric standard.  The success or fail status for each test is retained
@@ -145,7 +181,6 @@ class TestAlignMosaic(BaseHLATest):
         # Read the table and extract a list of each dataset name in IPPSSOOT format
         # which is either an association ID or an individual filename
         dataset_list = get_dataset_list(randomTable)
-        print('dataset list: ', dataset_list)
 
         numAllDatasets = len(dataset_list)
 
@@ -158,7 +193,6 @@ class TestAlignMosaic(BaseHLATest):
         # If the "alignment" of a field/dataset fails for any reason, trap
         # the exception and keep going.
         for dataset in dataset_list:
-           print('Dataset: ', dataset)
 
            try:
                shift_file = self.run_align([dataset])
@@ -168,16 +202,15 @@ class TestAlignMosaic(BaseHLATest):
 
                if not x_shift and ((rms_x <= 0.25) and (rms_y <= 0.25)):
                    numSuccess += 1
-                   print('NumSuccess: ', numSuccess)
-                   sys.stdout.flush()
-           #except ValueError:
+
+           # Catch anything that happens as this dataset will be considered a failure, but
+           # the processing of datasets should continue
            except Exception:
                pass
 
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets
         print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
-        sys.stdout.flush()
  
         return percentSuccess
 
