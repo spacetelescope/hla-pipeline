@@ -6,6 +6,7 @@ from stwcs import updatewcs
 
 from base_test import BaseHLATest
 from hlapipeline import align_to_gaia
+import hlapipeline.utils.catalog_utils as catutils
 
 @pytest.mark.bigdata
 class TestAlignMosaic(BaseHLATest):
@@ -36,7 +37,7 @@ class TestAlignMosaic(BaseHLATest):
 
     ref_loc = ['truth']
 
-    def test_align_ngc188(self):
+    def AAAtest_align_ngc188(self):
         """ Verify whether NGC188 exposures can be aligned to an astrometric standard.
 
         Characeteristics of this test:
@@ -56,7 +57,7 @@ class TestAlignMosaic(BaseHLATest):
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
-    def test_align_47tuc(self):
+    def AAAtest_align_47tuc(self):
         """ Verify whether 47Tuc exposures can be aligned to an astrometric standard.
 
         Characeteristics of this test:
@@ -76,7 +77,7 @@ class TestAlignMosaic(BaseHLATest):
 
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
-    def test_astroquery(self):
+    def AAAtest_astroquery(self):
         """Verify that new astroquery interface will work"""
         self.curdir = os.getcwd()
         self.input_loc = ''
@@ -88,8 +89,49 @@ class TestAlignMosaic(BaseHLATest):
         assert (rms_x <= 0.25 and rms_y <= 0.25)
 
     def test_align_randomFields(self):
-        """ Process a large number of randomly selected fields which are defined in
-            an input ascii file (CSV).
+        """ Wrapper to set up the test for aligning a large number of randomly
+            selected fields (aka datasets) from a input ascii file (CSV).
+    
+            The wrapper provides the parameter settings for the underlying test, 
+            as well as implements the criterion for the overall success or failure
+            of the test.
+        """
+        #inputListFile = 'ACSWFC3List.csv'
+        inputListFile = 'ACSList1.csv'
+        
+        # Desired number of random entries for testing
+        #inputNumEntries = 100
+        inputNumEntries = 1
+
+        # Seed for random number generator
+        inputSeedValue = 1
+
+        # Obtain the full path to the file containing the dataset field names
+        self.input_loc  = 'master_lists'
+        self.curdir     = os.getcwd()
+        input_file_path = self.get_data(inputListFile)
+        print('input: ', input_file_path[0])
+
+        # Randomly select a subset of field names (each field represented by a row) from 
+        # the master CSV file and return as an Astropy table
+        randomCandidateTable = catutils.randomSelectFromCSV(input_file_path[0], 
+            inputNumEntries, inputSeedValue)
+        print('table:', randomCandidateTable)
+
+        # Invoke the methods which will handle acquiring/downloading the data from 
+        # MAST and perform the alignment
+        percentSuccess = 0.0
+        try:
+            percentSuccess = self.align_randomFields (randomCandidateTable)
+        except Exception:
+            pass
+
+        assert(percentSuccess >= 0.70)
+
+
+    def align_randomFields(self, randomTable):
+        """ Process a large number of randomly selected fields (aka datasets) stored 
+            in an Astropy table.
 
             Each field is used as input to determine if it can be aligned to an 
             astrometric standard.  The success or fail status for each test is retained
@@ -97,71 +139,69 @@ class TestAlignMosaic(BaseHLATest):
             this test.
         """
 
-        # Need to accommodate a pre-defined list existing in local store or Artifactory
-        # via the setting of the environment variable TEST_BIGDATA
-        #input_list_file= ['ACSList50.csv']
-        input_list_file = ['ACSList5.csv']
-
-        self.input_loc = 'master_lists'
-        self.curdir = os.getcwd()
-
         numSuccess = 0
         numAllDatasets = 0
 
-        for input_file in input_list_file:
-            # Obtain the full path to the file containing the dataset names
-            input_file_path = self.get_data(input_file)
+        # Read the table and extract a list of each dataset name in IPPSSOOT format
+        # which is either an association ID or an individual filename
+        dataset_list = get_dataset_list(randomTable)
+        print('dataset list: ', dataset_list)
 
-            # Read the file and extract a list of each dataset name in IPPSSOOT format
-            # which is either an association ID or an individual filename
-            dataset_list = get_dataset_list(input_file_path[0])
+        numAllDatasets = len(dataset_list)
 
-            numAllDatasets += len(dataset_list)
+        # Reset the input location as the actual data will be obtained
+        # from the MAST archive via astroquery
+        #self.curdir = os.getcwd()
+        #self.input_loc = ''
 
-            # Reset the input location as the actual data will be obtained
-            # from the MAST archive via astroquery
-            self.input_loc = ''
+        # Process the dataset names in the list
+        #
+        # If the dataset name represents an association ID, the multiplicity 
+        # of images within the association need to be processed.  Otherwise,
+        # the dataset is a single image.
+        #
+        # If the "alignment" of a field/dataset fails for any reason, trap
+        # the exception and keep going.
+        for dataset in dataset_list:
+           #self.output_shift_file = 'test_random_mosaic_shifts.txt'
+           rms_x = 1.0
+           rms_y = 1.0
 
-            # Process the dataset names in the list
-            #
-            # If the dataset name represents an association ID, the multiplicity 
-            # of images within the association need to be processed.  Otherwise,
-            # the dataset is a single image.
-            for dataset in dataset_list:
-                filenames = self.get_input_file(dataset, docopy=True)
-                print(filenames)
-                for infile in filenames:
-                    updatewcs.updatewcs(infile)
-  
-                try:
-                    output_shift_file = 'test_mosaic_shifts.txt'
-                    align_to_gaia.align(filenames, shift_name=output_shift_file)
+           try:
+               shift_file = self.run_align([dataset])
+               rms_x = max(shift_file['col6'])
+               rms_y = max(shift_file['col7'])
 
-                    shift_file = Table.read(output_shift_file, format='ascii')
-                    rms_x = max(shift_file['col6'])
-                    rms_y = max(shift_file['col7'])
+               if ((rms_x <= 0.25) and (rms_y <= 0.25)):
+                   numSuccess += 1
+           except ValueError:
+               pass
 
-                    if ((rms_x <= 0.25) and (rms_y <= 0.25)):
-                        numSuccess += 1
-
-                    # Clean up
-                    os.remove("test_mosaic_shifts.txt")
-
-                except ValueError:
-                    pass
-             
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets
-        print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess)
+        print('Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
  
-        assert(percentSuccess >= 0.70)
+        return percentSuccess
 
-def get_dataset_list(filename):
-    """ Standalone function to read the master file list and get the dataset names"""
+def get_dataset_list(tableName):
+    """ Standalone function to read the Astropy table and get the dataset names
 
-    dataFromTable = Table.read(filename, format='ascii')
-    datasetIDs = dataFromTable['observationID'][:10]
-    asnIDs     = dataFromTable['asnID'][-10:]
+    Parameters
+    ==========
+    tableName : str
+        Filename of the input master CSV file containing individual 
+        images or association names, as well as observational 
+        information regarding the images
+
+    Returns
+    =======
+    datasetNames: list
+        List of individual image or association base (IPPSSOOT) names
+    """
+
+    #dataFromTable = Table.read(filename, format='ascii')
+    datasetIDs = tableName['observationID'][:10]
+    asnIDs     = tableName['asnID'][-10:]
 
     datasetNames = []
 
@@ -176,4 +216,4 @@ def get_dataset_list(filename):
         else:
             datasetNames.append(asnid)
 
-    return(datasetNames)
+    return datasetNames
