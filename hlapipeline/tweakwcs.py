@@ -13,6 +13,7 @@ def generate_source_catalogs(img1):
 
     :return:
     """
+#-----------------------------------------------------------------------------------------------------------------------
 
 def return_hardware_specific_parameters(instrument,detector):
     """
@@ -48,7 +49,7 @@ def return_hardware_specific_parameters(instrument,detector):
         sys.exit("ERROR! '%s' is an unrecognized instrument!" % (instrument))
 
     return(paramDict)
-
+#-----------------------------------------------------------------------------------------------------------------------
 def main(imgList, refImage):
     """
     Main calling function.
@@ -62,9 +63,12 @@ def main(imgList, refImage):
 
     # get instrument/detector-specific image alignment parameters
     # ids_paramDict = return_hardware_specific_parameters(inst,det) #TODO: flesh this out.
-
+    rawSourceCatalogDict = {}
     for imgName in imgList:
+        rawSourceCatalogDict[imgName]={}
         imgHDU = fits.open(imgName)
+        for extCtr in range(0,len(imgHDU)):
+            print(extCtr,imgHDU[extCtr].name)
         pdb.set_trace()
 
 
