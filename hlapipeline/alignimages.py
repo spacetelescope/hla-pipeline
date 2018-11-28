@@ -1,12 +1,16 @@
-#! /bin/env python
 """
 This script is a modernized replacement of tweakreg.
 """
+
 import argparse
 from astropy.io import fits
+#import hlapipeline.utils.astrometric_utils as amutils
+#import hlapipeline.utils.astroquery_utils as aqutils
 import pdb
+#from stwcs.wcsutil import HSTWCS
+import sys
 
-def generate_source_catalogs(img1):
+def generate_source_catalog(img1):
     """
     Generate source catalog for a specified input image
     :param img1: image name
@@ -14,11 +18,16 @@ def generate_source_catalogs(img1):
     :return:
     """
 #-----------------------------------------------------------------------------------------------------------------------
-
 def return_hardware_specific_parameters(instrument,detector):
     """
     Returns a dictionary containing parameters used in the image alignment process that are specific to each
     instrument/detector.
+
+    .. warning::
+        All of this is just a big giant placeholder until we know the following:
+
+         - Exactly which parameters need to be detector-specific
+         - What the values for said detector-specific parameters should be
 
     :param instrument: instrument name.
     :param detector: detector name
@@ -28,6 +37,8 @@ def return_hardware_specific_parameters(instrument,detector):
     """
     instrument = instrument.lower()
     detector = detector.lower()
+    print("INSTRUMENT: ",instrument)
+    print("DETECTOR:   ",detector)
     paramDict = {}
     if instrument == 'acs':
         if detector == 'hrc':
@@ -38,7 +49,7 @@ def return_hardware_specific_parameters(instrument,detector):
             print("ACS/WFC")
         else:
             sys.exit("ERROR! '%s/%s' is an unrecognized detector!"%(instrument,detector))
-    if instrument == 'wfc3':
+    elif instrument == 'wfc3':
         if detector == 'ir':
             print("WFC3/IR")
         elif detector == 'uvis':
@@ -60,23 +71,28 @@ def main(imgList, refImage):
     :type refImage: string
     :return: nothing for now.
     """
-
-    # get instrument/detector-specific image alignment parameters
-    # ids_paramDict = return_hardware_specific_parameters(inst,det) #TODO: flesh this out.
-    rawSourceCatalogDict = {}
+    rawSourceCatalogDict = {} #source catalog dict with source positions in individaul chip x,y coords
+    sourceCatalogDict = {} #source catalog dict with source positions in sky tangent-plane ra, dec coords
     for imgName in imgList:
-        rawSourceCatalogDict[imgName]={}
+        fullCatalogTable="PLACEHOLDER" #TODO: Properly define fullCatalogTable
         imgHDU = fits.open(imgName)
+
+        imgPrimaryHeader = imgHDU[0].header
+        # get instrument/detector-specific image alignment parameters
+        ids_paramDict = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
+        rawSourceCatalogDict[imgName]={}
+        sciExtCtr = 1
+        #loop over image extensions to find science extensions
         for extCtr in range(0,len(imgHDU)):
+            if imgHDU[extCtr].name == "SCI":
+                rawSourceCatalogDict[imgName][sciExtCtr] = {}
+                rawSourceCatalogDict[imgName][sciExtCtr]["WCS INFO"] = "WCS PLACEHOLDER" #TODO: add functional code here!
+                rawSourceCatalogDict[imgName][sciExtCtr]["SOURCE CATALOG"] = "CATALOG PLACEHOLDER"  # TODO: add functional code here!
+                sciExtCtr += 1
             print(extCtr,imgHDU[extCtr].name)
-        pdb.set_trace()
-
-
-
-
-
-
-
+        #
+        sourceCatalogDict[imgName] = "CATALOG PLACEHOLDER"
+    pdb.set_trace()
     return()
 #=======================================================================================================================
 if __name__ == '__main__':
@@ -93,7 +109,10 @@ if __name__ == '__main__':
     imgList=[]
     for item in ARGS.inputList:
         if item.endswith(".fits"):
-            imgList.append(item)
+            if item.endswith("asn.fits"):
+                sys.exit("ADD SUPPORT FOR ASN FILES!") #TODO: Add support for asn.fits files
+            else:
+                imgList.append(item)
         else:
             with open(item,'r') as infile:
                 fileLines = infile.readlines()
