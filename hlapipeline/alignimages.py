@@ -7,7 +7,7 @@ from astropy.io import fits
 #import hlapipeline.utils.astrometric_utils as amutils
 #import hlapipeline.utils.astroquery_utils as aqutils
 import pdb
-#from stwcs.wcsutil import HSTWCS
+from stwcs.wcsutil import HSTWCS
 import sys
 
 def generate_source_catalog(img1):
@@ -86,7 +86,7 @@ def main(imgList, refImage):
         for extCtr in range(0,len(imgHDU)):
             if imgHDU[extCtr].name == "SCI":
                 rawSourceCatalogDict[imgName][sciExtCtr] = {}
-                rawSourceCatalogDict[imgName][sciExtCtr]["WCS INFO"] = "WCS PLACEHOLDER" #TODO: add functional code here!
+                rawSourceCatalogDict[imgName][sciExtCtr]["WCS INFO"] = HSTWCS(imgHDU,sciExtCtr)
                 rawSourceCatalogDict[imgName][sciExtCtr]["SOURCE CATALOG"] = "CATALOG PLACEHOLDER"  # TODO: add functional code here!
                 sciExtCtr += 1
             print(extCtr,imgHDU[extCtr].name)
