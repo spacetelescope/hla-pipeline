@@ -4,8 +4,6 @@ This script is a modernized replacement of tweakreg.
 
 import argparse
 from astropy.io import fits
-#import hlapipeline.utils.astrometric_utils as amutils
-#import hlapipeline.utils.astroquery_utils as aqutils
 import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
