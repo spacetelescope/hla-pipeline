@@ -1,9 +1,12 @@
+#!/usr/bin/env python
+
 """
 This script is a modernized replacement of tweakreg.
 """
 
 import argparse
 from astropy.io import fits
+from utils import astrometric_utils as amutils
 import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
@@ -69,27 +72,16 @@ def main(imgList, refImage):
     :type refImage: string
     :return: nothing for now.
     """
-    rawSourceCatalogDict = {} #source catalog dict with source positions in individaul chip x,y coords
-    sourceCatalogDict = {} #source catalog dict with source positions in sky tangent-plane ra, dec coords
+    sourceCatalogDict = {}
     for imgName in imgList:
-        fullCatalogTable="PLACEHOLDER" #TODO: Properly define fullCatalogTable
         imgHDU = fits.open(imgName)
 
         imgPrimaryHeader = imgHDU[0].header
         # get instrument/detector-specific image alignment parameters
         ids_paramDict = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
-        rawSourceCatalogDict[imgName]={}
-        sciExtCtr = 1
-        #loop over image extensions to find science extensions
-        for extCtr in range(0,len(imgHDU)):
-            if imgHDU[extCtr].name == "SCI":
-                rawSourceCatalogDict[imgName][sciExtCtr] = {}
-                rawSourceCatalogDict[imgName][sciExtCtr]["WCS INFO"] = HSTWCS(imgHDU,sciExtCtr)
-                rawSourceCatalogDict[imgName][sciExtCtr]["SOURCE CATALOG"] = "CATALOG PLACEHOLDER"  # TODO: add functional code here!
-                sciExtCtr += 1
-            print(extCtr,imgHDU[extCtr].name)
-        #
-        sourceCatalogDict[imgName] = "CATALOG PLACEHOLDER"
+        sourceCatalogDict[imgName] = amutils.build_source_catalog(imgHDU, refwcs=HSTWCS(imgHDU, 1),threshold = 1000)
+
+
     pdb.set_trace()
     return()
 #=======================================================================================================================
