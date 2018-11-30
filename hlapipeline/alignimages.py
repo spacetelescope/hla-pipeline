@@ -76,22 +76,31 @@ def main(imgList, refImage):
     refwcs = HSTWCS(refImgHDU, 1)
 
     for imgName in imgList:
+        print("Image name:           ",imgName)
+        print("Reference image name: ",refImage)
+
         imgHDU = fits.open(imgName)
         imgPrimaryHeader = imgHDU[0].header
+
         # get instrument/detector-specific image alignment parameters
         detectorSpecificParams = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
+
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         fwhmpsf_pix = detectorSpecificParams['fwhmpsf']/detectorSpecificParams['platescale']
         sourceCatalogDict[imgName] = amutils.generate_source_catalog(imgHDU,refwcs,threshold = 1000,fwhm = fwhmpsf_pix)
+
         # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
         # set the "Coordinate System" option to "Physical" when loading the region file.
         regfilename = imgName[0:9]+".reg"
         out_table = Table(sourceCatalogDict[imgName])
         out_table.write(regfilename, include_names=["xcentroid", "ycentroid"], format="ascii.basic")
-        print("Wrote file ",regfilename)
+        print("Wrote region file ",regfilename)
+
+        print()
+        imgHDU.close()
         #pdb.set_trace()
 
-
+    refImgHDU.close()
     #pdb.set_trace()
     return()
 #=======================================================================================================================
