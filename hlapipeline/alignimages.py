@@ -6,11 +6,11 @@ This script is a modernized replacement of tweakreg.
 
 import argparse
 from astropy.io import fits
-from utils import astrometric_utils as amutils
+from astropy.table import Table
 import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
-
+from utils import astrometric_utils as amutils
 #-----------------------------------------------------------------------------------------------------------------------
 def return_hardware_specific_parameters(instrument,detector):
     """
@@ -83,8 +83,16 @@ def main(imgList, refImage):
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         fwhmpsf_pix = detectorSpecificParams['fwhmpsf']/detectorSpecificParams['platescale']
         sourceCatalogDict[imgName] = amutils.generate_source_catalog(imgHDU,refwcs,threshold = 1000,fwhm = fwhmpsf_pix)
+        # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
+        # set the "Coordinate System" option to "Physical" when loading the region file.
+        regfilename = imgName[0:9]+".reg"
+        out_table = Table(sourceCatalogDict[imgName])
+        out_table.write(regfilename, include_names=["xcentroid", "ycentroid"], format="ascii.basic")
+        print("Wrote file ",regfilename)
+        #pdb.set_trace()
 
-    pdb.set_trace()
+
+    #pdb.set_trace()
     return()
 #=======================================================================================================================
 if __name__ == '__main__':
