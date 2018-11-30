@@ -78,7 +78,7 @@ def main(imgList, refImage):
 
         imgPrimaryHeader = imgHDU[0].header
         # get instrument/detector-specific image alignment parameters
-        ids_paramDict = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
+        detectorSpecificParams = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
         sourceCatalogDict[imgName] = amutils.build_source_catalog(imgHDU, refwcs=HSTWCS(imgHDU, 1),threshold = 1000)
 
 
