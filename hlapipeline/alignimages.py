@@ -11,13 +11,6 @@ import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
 
-def generate_source_catalog(img1):
-    """
-    Generate source catalog for a specified input image
-    :param img1: image name
-
-    :return:
-    """
 #-----------------------------------------------------------------------------------------------------------------------
 def return_hardware_specific_parameters(instrument,detector):
     """
@@ -73,14 +66,18 @@ def main(imgList, refImage):
     :return: nothing for now.
     """
     sourceCatalogDict = {}
+
+    #get reference image WCS information
+    refImgHDU = fits.open(refImage)
+    refwcs = HSTWCS(refImgHDU, 1)
+
     for imgName in imgList:
         imgHDU = fits.open(imgName)
-
         imgPrimaryHeader = imgHDU[0].header
         # get instrument/detector-specific image alignment parameters
         detectorSpecificParams = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
-        sourceCatalogDict[imgName] = amutils.build_source_catalog(imgHDU, refwcs=HSTWCS(imgHDU, 1),threshold = 1000)
-
+        # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
+        sourceCatalogDict[imgName] = amutils.generate_source_catalog(imgHDU,refwcs,threshold = 1000)
 
     pdb.set_trace()
     return()
