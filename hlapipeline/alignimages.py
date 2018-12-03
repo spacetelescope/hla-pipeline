@@ -59,27 +59,22 @@ def return_hardware_specific_parameters(instrument,detector):
 
     return(paramDict)
 #-----------------------------------------------------------------------------------------------------------------------
-def main(imgList, refImage):
+def main(imgList):
     """
     Main calling function.
 
     :param imgList: list of images
-    :param refImage: name of reference image.
     :type imgList: list
-    :type refImage: string
     :return: nothing for now.
     """
     sourceCatalogDict = {}
 
-    #get reference image WCS information
-    refImgHDU = fits.open(refImage)
-    refwcs = HSTWCS(refImgHDU, 1)
-    refImgHDU.close()
+    #Generate composite WCS based on input images
+    refwcs = amutils.build_reference_wcs(imgList)
+
     for imgName in imgList:
         sourceCatalogDict[imgName] = {}
         print("Image name:           ",imgName)
-        print("Reference image name: ",refImage)
-
         imgHDU = fits.open(imgName)
         imgPrimaryHeader = imgHDU[0].header
 
@@ -100,17 +95,13 @@ def main(imgList, refImage):
         print()
         imgHDU.close()
         #pdb.set_trace()
-    pdb.set_trace()
+    #pdb.set_trace()
     return()
 #=======================================================================================================================
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description='Align images')
     PARSER.add_argument('inputList', nargs='+', help='A space-separated list of fits files to align, or a simple text '
                                                      'file containing a list of fits files to align, one per line')
-    PARSER.add_argument('-r', '--refImage', required=False,default=None,help='Name of the image that will be used as the '
-                                                                             'reference image for the alignment. If not '
-                                                                             'explicitly specified, the default is the  '
-                                                                             'first image in the input list.')
     ARGS = PARSER.parse_args()
 
     # Build list of input images
@@ -127,11 +118,5 @@ if __name__ == '__main__':
             for fileLine in fileLines:
                 imgList.append(fileLine.strip())
 
-    # Set reference image
-    if ARGS.refImage:
-        refImage = ARGS.refImage
-    else:
-        refImage = imgList[0]
-
     # Get to it!
-    main(imgList, refImage)
+    main(imgList)
