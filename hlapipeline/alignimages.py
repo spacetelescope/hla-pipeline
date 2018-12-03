@@ -8,7 +8,6 @@ import argparse
 from astropy.io import fits
 from astropy.table import Table
 import pdb
-from stwcs.wcsutil import HSTWCS
 import sys
 from utils import astrometric_utils as amutils
 
@@ -27,7 +26,6 @@ detector_specific_params = {"acs":
                                       "platescale":0.09}, # TODO: hla DGSL pipleine value: 0.09. Instrument handbook value: 0.13, also later 0.135×0.121. Verify correct value.
                                  "uvis":{"fwhmpsf":0.076, # TODO: nothing. pipeline value in agreement with instrument handbook value.
                                       "platescale":0.04}}} # TODO: hla DGSL pipleine value: 0.04. Instrument handbook value: 0.04, but also later 0.0395×0.0395. Verify correct value.
-
 #-----------------------------------------------------------------------------------------------------------------------
 def main(imgList):
     """
@@ -43,16 +41,18 @@ def main(imgList):
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
 
     # 3: Build WCS for full set of input observations
+    refwcs = amutils.build_reference_wcs(imgList)
 
     # 4: Retrieve list of astrometric sources from database
 
     # 5: Extract catalog of observable sources from each input image
+    extracted_sources = generate_source_catalogs(imgList,refwcs)
 
     # 6: Cross-match source catalog with astrometric reference source catalog
 
     # 7: Perform fit between source catalog and reference catalog
-
-def generate_source_catalogs(imgList):
+#-----------------------------------------------------------------------------------------------------------------------
+def generate_source_catalogs(imgList,refwcs):
     """
     Genreates a dictionary of source catalogs keyed by image name.
 
@@ -60,9 +60,6 @@ def generate_source_catalogs(imgList):
     :return:
     """
     sourceCatalogDict = {}
-
-    #Generate composite WCS based on input images
-    refwcs = amutils.build_reference_wcs(imgList)
 
     for imgName in imgList:
         print("Image name:           ", imgName)
@@ -87,11 +84,9 @@ def generate_source_catalogs(imgList):
         regfilename = imgName[0:9]+".reg"
         out_table = Table(sourceCatalogDict[imgName]["catalog_table"])
         out_table.write(regfilename, include_names=["xcentroid", "ycentroid"], format="ascii.basic")
-        print("Wrote region file ",regfilename)
-
-        print()
+        print("Wrote region file {}\n".format(regfilename))
         imgHDU.close()
-    return()
+    return(sourceCatalogDict)
 #=======================================================================================================================
 if __name__ == '__main__':
     PARSER = argparse.ArgumentParser(description='Align images')
