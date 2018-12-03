@@ -11,53 +11,23 @@ import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
 from utils import astrometric_utils as amutils
-#-----------------------------------------------------------------------------------------------------------------------
-def return_hardware_specific_parameters(instrument,detector):
-    """
-    Returns a dictionary containing parameters used in the image alignment process that are specific to each
-    instrument/detector.
 
-    .. note::
-        Summary of parameter units:
-        - fwhmpsf: arcseconds
-        - platescale: arcseconds per pixel
+# Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
+detector_specific_params = {"acs":
+                                {"hrc":
+                                     {"fwhmpsf":0.073, # TODO: Verify value
+                                      "platescale":0.025}, # TODO: hla DGSL pipleine value: 0.025. Instrument handbook value: 0.027, and later ~0.028 × 0.025"/pixel. Verify correct value.
+                                 "sbc":
+                                     {"fwhmpsf":0.065, # TODO: Verify value
+                                      "platescale":0.03}, # TODO: hla DGSL pipleine value: 0.030. Instrument handbook value: 0.032, and later ~0.034 × 0.030"/pixel Verify correct value.
+                                 "wfc":{"fwhmpsf":0.076, # TODO: Verify value
+                                      "platescale":0.05}}, # TODO: nothing. pipeline value in agreement with instrument handbook value.
+                            "wfc3":
+                                {"ir":{"fwhmpsf":0.14, # TODO: nothing. pipeline value in agreement with instrument handbook value.
+                                      "platescale":0.09}, # TODO: hla DGSL pipleine value: 0.09. Instrument handbook value: 0.13, also later 0.135×0.121. Verify correct value.
+                                 "uvis":{"fwhmpsf":0.076, # TODO: nothing. pipeline value in agreement with instrument handbook value.
+                                      "platescale":0.04}}} # TODO: hla DGSL pipleine value: 0.04. Instrument handbook value: 0.04, but also later 0.0395×0.0395. Verify correct value.
 
-    :param instrument: instrument name.
-    :param detector: detector name
-    :type instrument: string
-    :type detector: string
-    :return: dictionary of parameters.
-    """
-    instrument = instrument.lower()
-    detector = detector.lower()
-    print("INSTRUMENT: ",instrument)
-    print("DETECTOR:   ",detector)
-    paramDict = {}
-    if instrument == 'acs':
-        if detector == 'hrc':
-            paramDict["fwhmpsf"] = 0.073 # TODO: Verify value
-            paramDict['platescale'] = 0.025 # TODO: hla DGSL pipleine value: 0.025. Instrument handbook value: 0.027, and later ~0.028 × 0.025"/pixel. Verify correct value.
-        elif detector == 'sbc':
-            paramDict["fwhmpsf"] = 0.065 # TODO: Verify value
-            paramDict['platescale'] = 0.03 # TODO: hla DGSL pipleine value: 0.030. Instrument handbook value: 0.032, and later ~0.034 × 0.030"/pixel Verify correct value.
-        elif detector == 'wfc':
-            paramDict["fwhmpsf"] = 0.076 # TODO: Verify value
-            paramDict['platescale'] = 0.05 # TODO: nothing. pipeline value in agreement with instrument handbook value.
-        else:
-            sys.exit("ERROR! '%s/%s' is an unrecognized detector!"%(instrument,detector))
-    elif instrument == 'wfc3':
-        if detector == 'ir':
-            paramDict["fwhmpsf"] = 0.14 # TODO: nothing. pipeline value in agreement with instrument handbook value.
-            paramDict['platescale'] = 0.09 # TODO: hla DGSL pipleine value: 0.09. Instrument handbook value: 0.13, also later 0.135×0.121. Verify correct value.
-        elif detector == 'uvis':
-            paramDict["fwhmpsf"] = 0.076 # TODO: nothing. pipeline value in agreement with instrument handbook value.
-            paramDict['platescale'] = 0.04  # TODO: hla DGSL pipleine value: 0.04. Instrument handbook value: 0.04, but also later 0.0395×0.0395. Verify correct value.
-        else:
-            sys.exit("ERROR! '%s/%s' is an unrecognized detector!" % (instrument, detector))
-    else:
-        sys.exit("ERROR! '%s' is an unrecognized instrument!" % (instrument))
-
-    return(paramDict)
 #-----------------------------------------------------------------------------------------------------------------------
 def main(imgList):
     """
@@ -73,13 +43,18 @@ def main(imgList):
     refwcs = amutils.build_reference_wcs(imgList)
 
     for imgName in imgList:
+        print("Image name:           ", imgName)
+
         sourceCatalogDict[imgName] = {}
-        print("Image name:           ",imgName)
+
+        # open image
         imgHDU = fits.open(imgName)
         imgPrimaryHeader = imgHDU[0].header
+        instrument = imgPrimaryHeader['INSTRUME'].lower()
+        detector = imgPrimaryHeader['DETECTOR'].lower()
 
         # get instrument/detector-specific image alignment parameters
-        sourceCatalogDict[imgName]["params"] = return_hardware_specific_parameters(imgPrimaryHeader['INSTRUME'],imgPrimaryHeader['DETECTOR'])
+        sourceCatalogDict[imgName]["params"] = detector_specific_params[instrument][detector]
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         fwhmpsf_pix = sourceCatalogDict[imgName]["params"]['fwhmpsf']/sourceCatalogDict[imgName]["params"]['platescale']
@@ -95,7 +70,7 @@ def main(imgList):
         print()
         imgHDU.close()
         #pdb.set_trace()
-    #pdb.set_trace()
+    pdb.set_trace()
     return()
 #=======================================================================================================================
 if __name__ == '__main__':
