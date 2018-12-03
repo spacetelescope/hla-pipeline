@@ -37,6 +37,28 @@ def main(imgList):
     :type imgList: list
     :return: nothing for now.
     """
+
+    # 1: Interpret input data and optional parameters
+
+    # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
+
+    # 3: Build WCS for full set of input observations
+
+    # 4: Retrieve list of astrometric sources from database
+
+    # 5: Extract catalog of observable sources from each input image
+
+    # 6: Cross-match source catalog with astrometric reference source catalog
+
+    # 7: Perform fit between source catalog and reference catalog
+
+def generate_source_catalogs(imgList):
+    """
+    Genreates a dictionary of source catalogs keyed by image name.
+
+    :param imgList:
+    :return:
+    """
     sourceCatalogDict = {}
 
     #Generate composite WCS based on input images
@@ -69,8 +91,6 @@ def main(imgList):
 
         print()
         imgHDU.close()
-        #pdb.set_trace()
-    pdb.set_trace()
     return()
 #=======================================================================================================================
 if __name__ == '__main__':
