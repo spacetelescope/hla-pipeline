@@ -85,9 +85,16 @@ def generate_source_catalogs(imgList,refwcs,**pars):
         imgPrimaryHeader = imgHDU[0].header
         instrument = imgPrimaryHeader['INSTRUME'].lower()
         detector = imgPrimaryHeader['DETECTOR'].lower()
-
+        
         # get instrument/detector-specific image alignment parameters
-        sourceCatalogDict[imgName]["params"] = detector_specific_params[instrument][detector]
+        if instrument in detector_specific_params.keys():
+            if detector in detector_specific_params[instrument].keys():
+                sourceCatalogDict[imgName]["params"] = detector_specific_params[instrument][detector]
+            else:
+                sys.exit("ERROR! Unrecognized detector '{}'. Exiting...".format(detector))
+        else:
+            sys.exit("ERROR! Unrecognized instrument '{}'. Exiting...".format(instrument))
+
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         imgwcs = HSTWCS(imgHDU, 1)
