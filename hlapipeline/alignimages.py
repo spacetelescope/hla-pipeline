@@ -8,24 +8,23 @@ import argparse
 from astropy.io import fits
 from astropy.table import Table
 import pdb
+from stwcs.wcsutil import HSTWCS
 import sys
 from utils import astrometric_utils as amutils
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
                                 {"hrc":
-                                     {"fwhmpsf":0.073, # TODO: Verify value
-                                      "platescale":0.025}, # TODO: hla DGSL pipleine value: 0.025. Instrument handbook value: 0.027, and later ~0.028 × 0.025"/pixel. Verify correct value.
+                                     {"fwhmpsf":0.073}, # TODO: Verify value
                                  "sbc":
-                                     {"fwhmpsf":0.065, # TODO: Verify value
-                                      "platescale":0.03}, # TODO: hla DGSL pipleine value: 0.030. Instrument handbook value: 0.032, and later ~0.034 × 0.030"/pixel Verify correct value.
-                                 "wfc":{"fwhmpsf":0.076, # TODO: Verify value
-                                      "platescale":0.05}}, # TODO: nothing. pipeline value in agreement with instrument handbook value.
+                                     {"fwhmpsf":0.065}, # TODO: Verify value
+                                 "wfc":
+                                     {"fwhmpsf":0.076}}, # TODO: Verify value
                             "wfc3":
-                                {"ir":{"fwhmpsf":0.14, # TODO: nothing. pipeline value in agreement with instrument handbook value.
-                                      "platescale":0.09}, # TODO: hla DGSL pipleine value: 0.09. Instrument handbook value: 0.13, also later 0.135×0.121. Verify correct value.
-                                 "uvis":{"fwhmpsf":0.076, # TODO: nothing. pipeline value in agreement with instrument handbook value.
-                                      "platescale":0.04}}} # TODO: hla DGSL pipleine value: 0.04. Instrument handbook value: 0.04, but also later 0.0395×0.0395. Verify correct value.
+                                {"ir":{
+                                    "fwhmpsf":0.14}, # TODO: nothing. pipeline value in agreement with instrument handbook value.
+                                 "uvis":{
+                                     "fwhmpsf":0.076}}} # TODO: nothing. pipeline value in agreement with instrument handbook value.
 #-----------------------------------------------------------------------------------------------------------------------
 def main(input_list):
     """Main calling function.
@@ -57,7 +56,7 @@ def main(input_list):
 
     # 7: Perform fit between source catalog and reference catalog
 #-----------------------------------------------------------------------------------------------------------------------
-def generate_source_catalogs(imgList,refwcs):
+def generate_source_catalogs(imgList,refwcs,**pars):
     """Generates a dictionary of source catalogs keyed by image name.
 
     Parameters
@@ -91,7 +90,8 @@ def generate_source_catalogs(imgList,refwcs):
         sourceCatalogDict[imgName]["params"] = detector_specific_params[instrument][detector]
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
-        fwhmpsf_pix = sourceCatalogDict[imgName]["params"]['fwhmpsf']/sourceCatalogDict[imgName]["params"]['platescale']
+        imgwcs = HSTWCS(imgHDU, 1)
+        fwhmpsf_pix = sourceCatalogDict[imgName]["params"]['fwhmpsf']/imgwcs.pscale
         sourceCatalogDict[imgName]["catalog_table"] = amutils.generate_source_catalog(imgHDU,refwcs,threshold = 1000,fwhm = fwhmpsf_pix)
 
         # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
