@@ -47,10 +47,12 @@ def main(input_list):
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
     imglist = input_list
+
     # 3: Build WCS for full set of input observations
     refwcs = amutils.build_reference_wcs(imglist)
 
     # 4: Retrieve list of astrometric sources from database
+    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2')
 
     # 5: Extract catalog of observable sources from each input image
     extracted_sources = generate_source_catalogs(imglist, refwcs, threshold=1000)
@@ -58,8 +60,33 @@ def main(input_list):
     # 6: Cross-match source catalog with astrometric reference source catalog
 
     # 7: Perform fit between source catalog and reference catalog
+# ----------------------------------------------------------------------------------------------------------------------
 
 
+def generate_astrometric_catalog(imglist, **pars):
+    """Generates a catalog of all sources from an existing astrometric catalog are in or near the FOVs of the images in
+        the input list.
+
+    Parameters
+    ----------
+    imglist : list
+        List of one or more calibrated fits images that will be used for catalog generation.
+
+    Returns
+    =======
+    ref_table : object
+        Astropy Table object of the catalog
+
+    """
+    # generate catalog
+    out_catalog = amutils.create_astrometric_catalog(imglist,**pars)
+
+    # write catalog to ascii text file
+    catalog_fileanme = "refcatalog.cat"
+    out_catalog.write(catalog_fileanme, format="ascii.fast_commented_header")
+
+    print("Wrote reference catalog {}.".format(catalog_fileanme))
+    return(out_catalog)
 # ----------------------------------------------------------------------------------------------------------------------
 
 
