@@ -11,6 +11,7 @@ import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
 from utils import astrometric_utils as amutils
+from utils import astroquery_utils as aqutils
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
@@ -50,7 +51,7 @@ def main(input_list):
     # 4: Retrieve list of astrometric sources from database
 
     # 5: Extract catalog of observable sources from each input image
-    extracted_sources = generate_source_catalogs(imgList,refwcs)
+    extracted_sources = generate_source_catalogs(imgList,refwcs,threshold=1000)
 
     # 6: Cross-match source catalog with astrometric reference source catalog
 
@@ -74,7 +75,6 @@ def generate_source_catalogs(imgList,refwcs,**pars):
         detected sources
     """
     sourceCatalogDict = {}
-
     for imgName in imgList:
         print("Image name:           ", imgName)
 
@@ -98,7 +98,7 @@ def generate_source_catalogs(imgList,refwcs,**pars):
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         imgwcs = HSTWCS(imgHDU, 1)
         fwhmpsf_pix = sourceCatalogDict[imgName]["params"]['fwhmpsf']/imgwcs.pscale
-        sourceCatalogDict[imgName]["catalog_table"] = amutils.generate_source_catalog(imgHDU,refwcs,threshold = 1000,fwhm = fwhmpsf_pix)
+        sourceCatalogDict[imgName]["catalog_table"] = amutils.generate_source_catalog(imgHDU,refwcs,fwhm = fwhmpsf_pix,**pars)
 
         # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
         # set the "Coordinate System" option to "Physical" when loading the region file.
