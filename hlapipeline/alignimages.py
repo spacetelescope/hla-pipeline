@@ -16,16 +16,26 @@ from utils import astroquery_utils as aqutils
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
                                 {"hrc":
-                                     {"fwhmpsf": 0.073},  # TODO: Verify value
+                                     {"fwhmpsf": 0.073,
+                                      "classify": True,
+                                      "threshold": None},
                                  "sbc":
-                                     {"fwhmpsf": 0.065},  # TODO: Verify value
+                                     {"fwhmpsf": 0.065,
+                                      "classify": True,
+                                      "threshold": None},
                                  "wfc":
-                                     {"fwhmpsf": 0.076}},  # TODO: Verify value
+                                     {"fwhmpsf": 0.076,
+                                      "classify": True,
+                                      "threshold": None}},  # TODO: Verify ACS fwhmpsf values
                             "wfc3":
                                 {"ir":
-                                     {"fwhmpsf": 0.14},
+                                     {"fwhmpsf": 0.14,
+                                      "classify": True,
+                                      "threshold": None},
                                  "uvis":
-                                     {"fwhmpsf": 0.076}}}
+                                     {"fwhmpsf": 0.076,
+                                      "classify": True,
+                                      "threshold": None}}}
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -52,7 +62,7 @@ def main(input_list):
     refwcs = amutils.build_reference_wcs(imglist)
 
     # 4: Retrieve list of astrometric sources from database
-    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2')
+    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2',existing_wcs=refwcs)
 
     # 5: Extract catalog of observable sources from each input image
     extracted_sources = generate_source_catalogs(imglist, refwcs, threshold=1000)
