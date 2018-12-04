@@ -16,17 +16,17 @@ from utils import astroquery_utils as aqutils
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
                                 {"hrc":
-                                     {"fwhmpsf":0.073}, # TODO: Verify value
+                                     {"fwhmpsf": 0.073}, # TODO: Verify value
                                  "sbc":
-                                     {"fwhmpsf":0.065}, # TODO: Verify value
+                                     {"fwhmpsf": 0.065}, # TODO: Verify value
                                  "wfc":
-                                     {"fwhmpsf":0.076}}, # TODO: Verify value
+                                     {"fwhmpsf": 0.076}}, # TODO: Verify value
                             "wfc3":
                                 {"ir":{
-                                    "fwhmpsf":0.14},
+                                    "fwhmpsf": 0.14},
                                  "uvis":{
-                                     "fwhmpsf":0.076}}}
-#-----------------------------------------------------------------------------------------------------------------------
+                                     "fwhmpsf": 0.076}}}
+# ----------------------------------------------------------------------------------------------------------------------
 def main(input_list):
     """Main calling function.
     
@@ -56,7 +56,7 @@ def main(input_list):
     # 6: Cross-match source catalog with astrometric reference source catalog
 
     # 7: Perform fit between source catalog and reference catalog
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 def generate_source_catalogs(imglist, refwcs, **pars):
     """Generates a dictionary of source catalogs keyed by image name.
 
@@ -69,16 +69,16 @@ def generate_source_catalogs(imglist, refwcs, **pars):
 
     Returns
     -------
-    sourceCatalogDict : dictionary
+    sourcecatalogdict : dictionary
         a dictionary (keyed by image name) of two element dictionaries which in tern contain 1) a dictionary of the
         detector-specific processing parameters and 2) an astropy table of position and photometry information of all
         detected sources
     """
-    sourceCatalogDict = {}
+    sourcecatalogdict = {}
     for imgname in imglist:
         print("Image name: ", imgname)
 
-        sourceCatalogDict[imgname] = {}
+        sourcecatalogdict[imgname] = {}
 
         # open image
         imgHDU = fits.open(imgname)
@@ -89,25 +89,25 @@ def generate_source_catalogs(imglist, refwcs, **pars):
         # get instrument/detector-specific image alignment parameters
         if instrument in detector_specific_params.keys():
             if detector in detector_specific_params[instrument].keys():
-                sourceCatalogDict[imgname]["params"] = detector_specific_params[instrument][detector]
+                sourcecatalogdict[imgname]["params"] = detector_specific_params[instrument][detector]
             else:
-                sys.exit("ERROR! Unrecognized detector '{}'. Exiting...".format(detector))        
+                sys.exit("ERROR! Unrecognized detector '{}'. Exiting...".format(detector))
         else:
             sys.exit("ERROR! Unrecognized instrument '{}'. Exiting...".format(instrument))
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         imgwcs = HSTWCS(imgHDU, 1)
-        fwhmpsf_pix = sourceCatalogDict[imgname]["params"]['fwhmpsf']/imgwcs.pscale
-        sourceCatalogDict[imgname]["catalog_table"] = amutils.generate_source_catalog(imgHDU, refwcs, fwhm=fwhmpsf_pix, **pars)
+        fwhmpsf_pix = sourcecatalogdict[imgname]["params"]['fwhmpsf']/imgwcs.pscale
+        sourcecatalogdict[imgname]["catalog_table"] = amutils.generate_source_catalog(imgHDU, refwcs, fwhm=fwhmpsf_pix, **pars)
 
         # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
         # set the "Coordinate System" option to "Physical" when loading the region file.
         regfilename = imgname[0:9]+".reg"
-        out_table = Table(sourceCatalogDict[imgname]["catalog_table"])
+        out_table = Table(sourcecatalogdict[imgname]["catalog_table"])
         out_table.write(regfilename, include_names=["xcentroid", "ycentroid"], format="ascii.basic")
         print("Wrote region file {}\n".format(regfilename))
         imgHDU.close()
-    return(sourceCatalogDict)
+    return(sourcecatalogdict)
 #=======================================================================================================================
 if __name__ == '__main__':
     import argparse
