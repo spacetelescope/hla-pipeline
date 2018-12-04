@@ -58,6 +58,8 @@ def main(input_list):
     # 6: Cross-match source catalog with astrometric reference source catalog
 
     # 7: Perform fit between source catalog and reference catalog
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
