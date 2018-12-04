@@ -16,20 +16,22 @@ from utils import astroquery_utils as aqutils
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
                                 {"hrc":
-                                     {"fwhmpsf": 0.073}, # TODO: Verify value
+                                     {"fwhmpsf": 0.073},  # TODO: Verify value
                                  "sbc":
-                                     {"fwhmpsf": 0.065}, # TODO: Verify value
+                                     {"fwhmpsf": 0.065},  # TODO: Verify value
                                  "wfc":
-                                     {"fwhmpsf": 0.076}}, # TODO: Verify value
+                                     {"fwhmpsf": 0.076}},  # TODO: Verify value
                             "wfc3":
-                                {"ir":{
-                                    "fwhmpsf": 0.14},
-                                 "uvis":{
-                                     "fwhmpsf": 0.076}}}
+                                {"ir":
+                                     {"fwhmpsf": 0.14},
+                                 "uvis":
+                                     {"fwhmpsf": 0.076}}}
 # ----------------------------------------------------------------------------------------------------------------------
+
+
 def main(input_list):
     """Main calling function.
-    
+
     Parameters
     ----------
     input_list : list
@@ -57,6 +59,8 @@ def main(input_list):
 
     # 7: Perform fit between source catalog and reference catalog
 # ----------------------------------------------------------------------------------------------------------------------
+
+
 def generate_source_catalogs(imglist, refwcs, **pars):
     """Generates a dictionary of source catalogs keyed by image name.
 
@@ -81,10 +85,10 @@ def generate_source_catalogs(imglist, refwcs, **pars):
         sourcecatalogdict[imgname] = {}
 
         # open image
-        imgHDU = fits.open(imgname)
-        imgPrimaryHeader = imgHDU[0].header
-        instrument = imgPrimaryHeader['INSTRUME'].lower()
-        detector = imgPrimaryHeader['DETECTOR'].lower()
+        imghdu = fits.open(imgname)
+        imgprimaryheader = imghdu[0].header
+        instrument = imgprimaryheader['INSTRUME'].lower()
+        detector = imgprimaryheader['DETECTOR'].lower()
 
         # get instrument/detector-specific image alignment parameters
         if instrument in detector_specific_params.keys():
@@ -96,9 +100,9 @@ def generate_source_catalogs(imglist, refwcs, **pars):
             sys.exit("ERROR! Unrecognized instrument '{}'. Exiting...".format(instrument))
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
-        imgwcs = HSTWCS(imgHDU, 1)
+        imgwcs = HSTWCS(imghdu, 1)
         fwhmpsf_pix = sourcecatalogdict[imgname]["params"]['fwhmpsf']/imgwcs.pscale
-        sourcecatalogdict[imgname]["catalog_table"] = amutils.generate_source_catalog(imgHDU, refwcs, fwhm=fwhmpsf_pix, **pars)
+        sourcecatalogdict[imgname]["catalog_table"] = amutils.generate_source_catalog(imghdu, refwcs, fwhm=fwhmpsf_pix, **pars)
 
         # write out coord lists to files for diagnostic purposes. Protip: To display the sources in these files in DS9,
         # set the "Coordinate System" option to "Physical" when loading the region file.
@@ -106,9 +110,11 @@ def generate_source_catalogs(imglist, refwcs, **pars):
         out_table = Table(sourcecatalogdict[imgname]["catalog_table"])
         out_table.write(regfilename, include_names=["xcentroid", "ycentroid"], format="ascii.basic")
         print("Wrote region file {}\n".format(regfilename))
-        imgHDU.close()
+        imghdu.close()
     return(sourcecatalogdict)
-#=======================================================================================================================
+# ======================================================================================================================
+
+
 if __name__ == '__main__':
     import argparse
     PARSER = argparse.ArgumentParser(description='Align images')
@@ -121,7 +127,7 @@ if __name__ == '__main__':
     for item in ARGS.raw_input_list:
         if item.endswith(".fits"):
             if item.endswith("asn.fits"):
-                sys.exit("ADD SUPPORT FOR ASN FILES!") #TODO: Add support for asn.fits files
+                sys.exit("ADD SUPPORT FOR ASN FILES!")  # TODO: Add support for asn.fits files
             else:
                 input_list.append(item)
         else:
