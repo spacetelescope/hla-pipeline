@@ -6,6 +6,8 @@
 
 from astropy.io import fits
 from astropy.table import Table
+import glob
+import os
 import pdb
 from stwcs.wcsutil import HSTWCS
 import sys
@@ -21,8 +23,8 @@ detector_specific_params = {"acs":
                                       "threshold": None},
                                  "sbc":
                                      {"fwhmpsf": 0.065,
-                                      "classify": True,
-                                      "threshold": None},
+                                      "classify": False,
+                                      "threshold": 10},
                                  "wfc":
                                      {"fwhmpsf": 0.076,
                                       "classify": True,
@@ -30,7 +32,7 @@ detector_specific_params = {"acs":
                             "wfc3":
                                 {"ir":
                                      {"fwhmpsf": 0.14,
-                                      "classify": True,
+                                      "classify": False,
                                       "threshold": None},
                                  "uvis":
                                      {"fwhmpsf": 0.076,
@@ -39,13 +41,51 @@ detector_specific_params = {"acs":
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def main(input_list):
+def check_and_get_data(input_list):
+    """Verify that all specified files are present. If not, retrieve them from MAST.
+
+    Parameters
+    ----------
+    imglist : list
+        List of one or more calibrated fits images that will be used for catalog generation.
+
+    Returns
+    =======
+    input_file_list : list
+        list of full filenames
+
+    """
+    totalInputList=[]
+    for input_item in input_list:
+        if input_item.endswith("0"): #asn table
+            totalInputList.append(aqutils.retrieve_observation(input_item))
+
+        else: #single file rootname.
+            fitsfilename = glob.glob("{}_flc.fits".format(input_item))
+            if not fitsfilename:
+                fitsfilename = glob.glob("{}_flt.fits".format(input_item))
+            fitsfilename = fitsfilename[0]
+
+            if not os.path.exists(fitsfilename):
+                imghdu = fits.open(fitsfilename)
+                imgprimaryheader = imghdu[0].header
+                totalInputList.append(aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip()))
+            else: totalInputList.append(fitsfilename)
+    print("TOTAL INPUT LIST: ",totalInputList)
+    # TODO: add trap to deal with non-existent (incorrect) rootnames
+    # TODO: add "Clobber" and "Archive" options to aqutils.retrieve_observation
+    return(totalInputList)
+
+
+
+
+def perform_align(input_list):
     """Main calling function.
 
     Parameters
     ----------
     input_list : list
-        List of one or more input image(s) and/or association file(s) to align.
+        List of one or more IPPSSOOTs (rootnames) to align.
 
     Returns
     -------
@@ -53,16 +93,21 @@ def main(input_list):
 
     """
 
+    # Define astrometric catalog list in priority order
+    catalogList = ['GAIADR2', 'GSC241']
+    numCatalogs = len(catalogList)
+
     # 1: Interpret input data and optional parameters
+    imglist = check_and_get_data(input_list)
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
-    imglist = input_list
+
 
     # 3: Build WCS for full set of input observations
     refwcs = amutils.build_reference_wcs(imglist)
 
     # 4: Retrieve list of astrometric sources from database
-    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2',existing_wcs=refwcs)
+    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2', existing_wcs=refwcs)
 
     # 5: Extract catalog of observable sources from each input image
     extracted_sources = generate_source_catalogs(imglist, refwcs, threshold=1000)
@@ -164,16 +209,15 @@ if __name__ == '__main__':
     # Build list of input images
     input_list = []
     for item in ARGS.raw_input_list:
-        if item.endswith(".fits"):
-            if item.endswith("asn.fits"):
-                sys.exit("ADD SUPPORT FOR ASN FILES!")  # TODO: Add support for asn.fits files
-            else:
-                input_list.append(item)
-        else:
+        if os.path.exists(item):
             with open(item, 'r') as infile:
                 fileLines = infile.readlines()
             for fileLine in fileLines:
                 input_list.append(fileLine.strip())
+        else:
+            input_list.append(item)
+
 
     # Get to it!
-    main(input_list)
+    perform_align(input_list)
+
