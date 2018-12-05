@@ -13,6 +13,7 @@ from stwcs.wcsutil import HSTWCS
 import sys
 from utils import astrometric_utils as amutils
 from utils import astroquery_utils as aqutils
+from utils import filter
 
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
@@ -101,7 +102,8 @@ def perform_align(input_list):
     imglist = check_and_get_data(input_list)
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
-
+    filteredTable = filter.analyze_data(imglist)
+    pdb.set_trace()
 
     # 3: Build WCS for full set of input observations
     refwcs = amutils.build_reference_wcs(imglist)
