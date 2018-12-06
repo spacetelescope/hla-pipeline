@@ -34,7 +34,7 @@ def analyze_data(inputFileList, **kwargs):
     The keyword/value pairs below define the "cannot process categories".
     OBSTYPE: not IMAGING
     MTFLAG: T
-    SCAN-TYP: C or D (or !N)
+    SCAN-TYP: C or D (or !N)   NOTE: This is WFC3 only keyword.
     FILTER: G*, *POL*
     APERTURE: *GRISM*, G*-REF, RAMP, *POL*
     TARGNAME: DARK, TUNGSTEN, BIAS, FLAT, EARTH-CALIB, DEUTERIUM
@@ -63,7 +63,6 @@ def analyze_data(inputFileList, **kwargs):
     namesArray = ('imageName', 'instrument', 'detector', 'filter', 'aperture', 'obstype', 
             'subarray', 'dateObs', 'doProcess', 'catalog', '# found sources', '# match sources', 
             'rms_x', 'rms_y', 'isSuccess')
-    #dataType = ('S20', 'S20', 'S20', 'S20', 'S20', 'S20', 'i1', 'S20', 'i1', 'S20', 'i4', 'i4', 'f8', 'f8', 'i1')
     dataType = ('S20', 'S20', 'S20', 'S20', 'S20', 'S20', 'b', 'S20', 'b', 'S20', 'i4', 'i4', 'f8', 'f8', 'b')
 
     outputTable = Table(names=namesArray,dtype=dataType)
@@ -105,8 +104,8 @@ def analyze_data(inputFileList, **kwargs):
             noProcKey   = MTKEY
             noProcValue = mtflag 
 
-        # Bostrophidon without or with dwell
-        elif any ([scan_typ == 'C', scan_typ == 'D']):
+        # Bostrophidon without or with dwell (WFC3 only)
+        elif instrume == 'WFC3' and any ([scan_typ == 'C', scan_typ == 'D']):
             noProcKey   = SCNKEY
             noProcValue = scan_typ
 
@@ -133,7 +132,6 @@ def analyze_data(inputFileList, **kwargs):
             noProcValue = expotime 
 
         if (noProcKey is not None):
-            #doProcess = 0
             doProcess = False
 
         # Issue message to log file 
