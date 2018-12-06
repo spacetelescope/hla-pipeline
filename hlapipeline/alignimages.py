@@ -153,8 +153,21 @@ def perform_align(input_list):
     # 5: Extract catalog of observable sources from each input image
     print("-------------------- STEP 5: Source finding --------------------")
     extracted_sources = generate_source_catalogs(processList, refwcs, threshold=1000)
+    for imgname in extracted_sources.keys():
+        # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
+        # TODO *** Is this no hope or iterate on threshold or ???
+        if len(extracted_sources[imgname]["catalog_table"]) < MIN_OBSERVABLE_THRESHOLD:
+            print("Not enough sources ({}) found in image {}".format(len(extracted_sources[imgname]["catalog_table"]),imgname))
+            return
+
     print("\nSUCCESS")
     # 6: Cross-match source catalog with astrometric reference source catalog
+    # TODO *** catalog cross match call here
+    # if len(out_catalog) < MIN_CROSS_MATCHS:
+    #     print("Not enough cross matches found between astrometric catalog and sources found in images")
+    #     print("Try again with the next catalog")
+    #     catalogIndex += 1
+    #     continue
 
     # 7: Perform fit between source catalog and reference catalog
 
