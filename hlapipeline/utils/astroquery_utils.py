@@ -1,8 +1,9 @@
 """Wrappers for astroquery-related functionality"""
 import shutil
 import os
-
+import pdb
 from astroquery.mast import Observations
+from astropy.table import Table
 
 
 def retrieve_observation(obsid, suffix=['FLC']):
@@ -57,9 +58,20 @@ def retrieve_observation(obsid, suffix=['FLC']):
         if len(dataProductsByID) == 0:
             print("WARNING: No FLC or FLT files found for {}.".format(obsid))
             return local_files
+        
+    # if clobber == False:    #TODO: Finish clobber section
+    #     rowsToRemove = []
+    #     for rowCtr in range(0,len(dataProductsByID)):
+    #         if os.path.exists(dataProductsByID[rowCtr]['productFilename']):
+    #             print("{} already exists. File download skipped.".format(dataProductsByID[rowCtr]['productFilename']))
+    #             rowsToRemove.append(rowCtr)
+    #     if rowsToRemove:
+    #         rowsToRemove.reverse()
+    #         for rowNum in rowsToRemove:
+    #             dataProductsByID.remove_row(rowNum)
+
 
     manifest = Observations.download_products(dataProductsByID, mrp_only=False)
-
     download_dir = None
     for file in manifest['Local Path']:
         # Identify what sub-directory was created by astroquery for the download
@@ -74,5 +86,4 @@ def retrieve_observation(obsid, suffix=['FLC']):
         local_files.append(local_file)
     # Remove astroquery created sub-directories
     shutil.rmtree(download_dir)
-
     return local_files
