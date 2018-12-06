@@ -17,6 +17,11 @@ from utils import astroquery_utils as aqutils
 from utils import filter
 
 
+MIN_CATALOG_THRESHOLD = 3
+MIN_OBSERVABLE_THRESHOLD = 10
+MIN_CROSS_MATCHES = 3
+MIN_FIT_MATCHES = 6
+
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
                                 {"hrc":
@@ -99,11 +104,12 @@ def perform_align(input_list):
     numCatalogs = len(catalogList)
 
     # 1: Interpret input data and optional parameters
-    print("-------------------- STEP 1 --------------------")
+    print("-------------------- STEP 1: Get data --------------------")
     imglist = check_and_get_data(input_list)
+    print("\nSUCCESS")
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
-    print("-------------------- STEP 2 --------------------")
+    print("-------------------- STEP 2: Filter data --------------------")
     filteredTable = filter.analyze_data(imglist)
 
     # Check the table to determine if there is any viable data to be aligned.  The
@@ -116,22 +122,42 @@ def perform_align(input_list):
     # Get the list of all "good" files to use for the alignment
     processList = filteredTable['imageName'][np.where(filteredTable['doProcess'])]
     processList = list(processList) #Convert processList from numpy list to regular python list
+    print("\nSUCCESS")
 
     # 3: Build WCS for full set of input observations
-    print("-------------------- STEP 3 --------------------")
+    print("-------------------- STEP 3: Build WCS --------------------")
     refwcs = amutils.build_reference_wcs(processList)
+    print("\nSUCCESS")
 
     # 4: Retrieve list of astrometric sources from database
-    print("-------------------- STEP 4 --------------------")
-    reference_catalog = generate_astrometric_catalog(processList, catalog='GAIADR2', existing_wcs=refwcs)
+    print("-------------------- STEP 4: Detect astrometric sources --------------------")
+    # While loop to accommodate using multiple catalogs
+    doneFitting = False
+    catalogIndex = 0
+    while not doneFitting:
+        reference_catalog = generate_astrometric_catalog(processList, catalog='GAIADR2', existing_wcs=refwcs)
 
+        # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
+        if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
+            print("Not enough sources found in catalog" + catalogList[catalogIndex])
+            catalogIndex += 1
+            if catalogIndex <= (numCatalogs - 1):
+                print("Try again with the next catalog")
+                continue
+            else:
+                print("Not enough sources found in any catalog - no processing done.")
+                return
+        else:
+            doneFitting = True
+    print("\nSUCCESS")
     # 5: Extract catalog of observable sources from each input image
-    print("-------------------- STEP 5 --------------------")
+    print("-------------------- STEP 5: Source finding --------------------")
     extracted_sources = generate_source_catalogs(processList, refwcs, threshold=1000)
-
+    print("\nSUCCESS")
     # 6: Cross-match source catalog with astrometric reference source catalog
 
     # 7: Perform fit between source catalog and reference catalog
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 

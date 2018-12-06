@@ -10,7 +10,7 @@ a mosaic.
 from astropy.io.fits import getheader
 from astropy.table import Table
 import math
-
+import pdb
 __all__ = ['analyze_data']
 
 #def analyze_data(inputFileList, optionalCols = None):
@@ -74,20 +74,30 @@ def analyze_data(inputFileList, **kwargs):
         header_hdu  = 0
         header_data = getheader(inputFile, header_hdu)
 
-        obstype  = (header_data[OBSKEY]).upper()
-        mtflag   = (header_data[MTKEY]).upper()
-        scan_typ = (header_data[SCNKEY]).upper()
-
-        sfilter  = (header_data[FILKEY]).upper()
-        aperture = (header_data[APKEY]).upper()
-        targname = (header_data[TARKEY]).upper()
-        expotime = header_data[EXPKEY]
-
         # Keywords to use potentially for analysis
         instrume = (header_data['INSTRUME']).upper()
         detector = (header_data['DETECTOR']).upper()
         subarray = header_data['SUBARRAY']
-        dataObs  = header_data['DATE-OBS']
+        dateObs  = header_data['DATE-OBS']
+        obstype  = (header_data[OBSKEY]).upper()
+        mtflag   = (header_data[MTKEY]).upper()
+        if instrume == "WFC3":
+            scan_typ = (header_data[SCNKEY]).upper()
+        else: scan_typ = ""
+        if instrume == "WFC3":
+            sfilter  = (header_data[FILKEY]).upper()
+        if instrume == "ACS":
+            sfilter = ""
+            filtname_list = ["FILTER1","FILTER2"]
+            for filtname in filtname_list:
+                if (header_data[filtname]).upper()[0] in ("F","G","P"):
+                    if len(sfilter) > 0:
+                        sfilter+="_"
+                    sfilter+=(header_data[filtname]).upper()[0]
+        aperture = (header_data[APKEY]).upper()
+        targname = (header_data[TARKEY]).upper()
+        expotime = header_data[EXPKEY]
+
 
         # Determine if the image has one of these conditions.  The routine
         # will exit processing upon the first satisfied condition.
@@ -106,7 +116,7 @@ def analyze_data(inputFileList, **kwargs):
             noProcValue = mtflag 
 
         # Bostrophidon without or with dwell
-        elif any ([scan_typ == 'C', scan_typ == 'D']):
+        elif instrume == 'WFC3' and any ([scan_typ == 'C', scan_typ == 'D']):
             noProcKey   = SCNKEY
             noProcValue = scan_typ
 
