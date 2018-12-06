@@ -13,7 +13,6 @@ import math
 
 __all__ = ['analyze_data']
 
-#def analyze_data(inputFileList, optionalCols = None):
 def analyze_data(inputFileList, **kwargs):
     """
     Determine if images within the dataset can be aligned
@@ -31,14 +30,16 @@ def analyze_data(inputFileList, **kwargs):
         Astropy Table object containing data pertaining to the associated dataset, including 
         the doProcess bool
 
+    Notes 
+    =====
     The keyword/value pairs below define the "cannot process categories".
-    OBSTYPE: not IMAGING
-    MTFLAG: T
-    SCAN-TYP: C or D (or !N)   NOTE: This is WFC3 only keyword.
-    FILTER: G*, *POL*
-    APERTURE: *GRISM*, G*-REF, RAMP, *POL*
-    TARGNAME: DARK, TUNGSTEN, BIAS, FLAT, EARTH-CALIB, DEUTERIUM
-    EXPOTIME: 0 
+    OBSTYPE : not IMAGING
+    MTFLAG : T
+    SCAN-TYP : C or D (or !N)   NOTE: This is WFC3 only keyword.
+    FILTER : G*, *POL*
+    APERTURE : *GRISM*, G*-REF, RAMP, *POL*
+    TARGNAME : DARK, TUNGSTEN, BIAS, FLAT, EARTH-CALIB, DEUTERIUM
+    EXPOTIME : 0 
     """
     OBSKEY = 'OBSTYPE'
     MTKEY  = 'MTFLAG'
@@ -115,14 +116,12 @@ def analyze_data(inputFileList, **kwargs):
             noProcValue = sfilter
 
         # Ramp, polarizer, or grism 
-        elif any (['RAMP' in aperture, 'POL' in aperture, 'GRISM' in aperture, 
-                  '-REF' in aperture]):
+        elif any (x in aperture for x in ['RAMP', 'POL', 'GRISM', '-REF']):
             noProcKey   = APKEY
             noProcValue = aperture 
 
         # Calibration target
-        elif any (['DARK' in targname, 'TUNG' in targname, 'BIAS' in targname, 
-                  'FLAT' in targname, 'DEUT' in targname, 'EARTH-CAL' in targname]):
+        elif any (x in targname for x in ['DARK', 'TUNG', 'BIAS', 'FLAT', 'DEUT', 'EARTH-CAL']):
             noProcKey   = TARKEY
             noProcValue = targname
 
@@ -134,8 +133,9 @@ def analyze_data(inputFileList, **kwargs):
         if (noProcKey is not None):
             doProcess = False
 
-        # Issue message to log file 
-        #issue_msg(inputFileList, noProcKey, noProcValue)
+            # Issue message to log file - reports the first issue which makes the file ineligible
+            # for alignment
+            issue_msg(inputFile, noProcKey, noProcValue)
 
         # Populate a row of the table
         outputTable.add_row([inputFile, instrume, detector, sfilter, aperture, obstype, 
@@ -151,6 +151,6 @@ def issue_msg(filename, key, value):
         with alignment.
     """
 
-    print('Dataset ' + filename + ' has keyword = value of ' + key + ' = ' + str(value) + '.\n')
+    print('\nDataset ' + filename + ' has (keyword = value) of (' + key + ' = ' + str(value) + ').')
     print('Dataset cannot be aligned.\n')
 
