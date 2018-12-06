@@ -7,7 +7,7 @@ can be reconciled against an astrometric catalog and, for multiple images, used 
 a mosaic.
 
 """
-from astropy.io import fits
+from astropy.io.fits import getheader
 from astropy.table import Table
 import math
 
@@ -72,7 +72,7 @@ def analyze_data(inputFileList, **kwargs):
     for inputFile in inputFileList:
 
         header_hdu  = 0
-        header_data = fits.getheader(inputFile, header_hdu)
+        header_data = getheader(inputFile, header_hdu)
 
         obstype  = (header_data[OBSKEY]).upper()
         mtflag   = (header_data[MTKEY]).upper()

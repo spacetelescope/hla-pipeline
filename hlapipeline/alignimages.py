@@ -7,6 +7,7 @@
 from astropy.io import fits
 from astropy.table import Table
 import glob
+import numpy as np
 import os
 import pdb
 from stwcs.wcsutil import HSTWCS
@@ -75,9 +76,8 @@ def check_and_get_data(input_list):
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
     # TODO: add "Clobber" and "Archive" options to aqutils.retrieve_observation
+    # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
     return(totalInputList)
-
-
 
 
 def perform_align(input_list):
@@ -99,20 +99,35 @@ def perform_align(input_list):
     numCatalogs = len(catalogList)
 
     # 1: Interpret input data and optional parameters
+    print("-------------------- STEP 1 --------------------")
     imglist = check_and_get_data(input_list)
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
+    print("-------------------- STEP 2 --------------------")
     filteredTable = filter.analyze_data(imglist)
-    pdb.set_trace()
+
+    # Check the table to determine if there is any viable data to be aligned.  The
+    # 'doProcess' column (bool) indicates the image/file should or should not be used
+    # for alignment purposes.
+    if filteredTable['doProcess'].sum() == 0:
+        print("No viable images in filtered table - no processing done.\n")
+        return
+
+    # Get the list of all "good" files to use for the alignment
+    processList = filteredTable['imageName'][np.where(filteredTable['doProcess'])]
+    processList = list(processList) #Convert processList from numpy list to regular python list
 
     # 3: Build WCS for full set of input observations
-    refwcs = amutils.build_reference_wcs(imglist)
+    print("-------------------- STEP 3 --------------------")
+    refwcs = amutils.build_reference_wcs(processList)
 
     # 4: Retrieve list of astrometric sources from database
-    reference_catalog = generate_astrometric_catalog(imglist, catalog='GAIADR2', existing_wcs=refwcs)
+    print("-------------------- STEP 4 --------------------")
+    reference_catalog = generate_astrometric_catalog(processList, catalog='GAIADR2', existing_wcs=refwcs)
 
     # 5: Extract catalog of observable sources from each input image
-    extracted_sources = generate_source_catalogs(imglist, refwcs, threshold=1000)
+    print("-------------------- STEP 5 --------------------")
+    extracted_sources = generate_source_catalogs(processList, refwcs, threshold=1000)
 
     # 6: Cross-match source catalog with astrometric reference source catalog
 
