@@ -65,7 +65,7 @@ def check_and_get_data(input_list):
     totalInputList=[]
     for input_item in input_list:
         if input_item.endswith("0"): #asn table
-            totalInputList.append(aqutils.retrieve_observation(input_item))
+            totalInputList += aqutils.retrieve_observation(input_item)
 
         else: #single file rootname.
             fitsfilename = glob.glob("{}_flc.fits".format(input_item))
@@ -76,11 +76,11 @@ def check_and_get_data(input_list):
             if not os.path.exists(fitsfilename):
                 imghdu = fits.open(fitsfilename)
                 imgprimaryheader = imghdu[0].header
-                totalInputList.append(aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip()))
+                totalInputList += aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip())
             else: totalInputList.append(fitsfilename)
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
-    # TODO: add "Clobber" and "Archive" options to aqutils.retrieve_observation
+    # TODO: add "Archive" option to aqutils.retrieve_observation
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
     return(totalInputList)
 
