@@ -75,11 +75,18 @@ def check_and_get_data(input_list,**pars):
             if not os.path.exists(fitsfilename):
                 imghdu = fits.open(fitsfilename)
                 imgprimaryheader = imghdu[0].header
-                totalInputList += aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip(),**pars)
+                try:
+                    asnid.lower() = imgprimaryheader['ASN_ID'].strip()
+                except:
+                    asnid = 'NONE'
+                if asnid[0] in ['i','j']:
+                    totalInputList += aqutils.retrieve_observation(asnid,**pars)
+                else:
+                    totalInputList += aqutils.retrieve_observation(input_item, **pars) #try with ippssoot instead
+
             else: totalInputList.append(fitsfilename)
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
-    # TODO: add "Archive" option to aqutils.retrieve_observation
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
     return(totalInputList)
 
