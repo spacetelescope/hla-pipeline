@@ -78,6 +78,7 @@ def analyze_data(inputFileList, **kwargs):
     # Capture the data characteristics before any evaluation so the information is
     # available for the output table regardless of which keyword is used to 
     # to determine the data is not viable for alignment.
+
     for inputFile in inputFileList:
 
         header_hdu  = 0
@@ -91,7 +92,7 @@ def analyze_data(inputFileList, **kwargs):
         detector = (header_data['DETECTOR']).upper()
         subarray = header_data['SUBARRAY']
         dataObs  = header_data['DATE-OBS']
-
+        
         scan_typ = ''
         if instrume == 'WFC3':
             scan_typ = (header_data[SCNKEY]).upper()
@@ -175,6 +176,7 @@ def analyze_data(inputFileList, **kwargs):
             # Issue message to log file - reports the first issue which makes the file ineligible
             # for alignment
             issue_msg(inputFile, noProcKey, noProcValue)
+
 
         # Populate a row of the table
         outputTable.add_row([inputFile, instrume, detector, sfilter, aperture, obstype, 

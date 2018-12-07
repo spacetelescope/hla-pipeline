@@ -33,6 +33,7 @@ from astropy.table import Table, vstack
 from astropy.coordinates import SkyCoord
 from astropy.io import fits as pf
 from astropy.io import ascii
+from astropy.nddata import NDData
 from astropy.convolution import Gaussian2DKernel
 from astropy.stats import gaussian_fwhm_to_sigma
 import photutils
@@ -164,6 +165,10 @@ def create_astrometric_catalog(inputs, **pars):
     colnames = ('ra','dec', 'mag', 'objID', 'GaiaID')
     col_types = ('f8', 'f8', 'f4', 'U25', 'U25')
     ref_table = Table(names = colnames, dtype=col_types)
+
+    # rename coordinate columns to be consistent with tweakwcs
+    ref_table.rename_column('ra', 'RA')
+    ref_table.rename_column('dec', 'DEC')
 
     # extract just the columns we want...
     num_sources = 0
@@ -310,9 +315,47 @@ def find_gsc_offset(image, input_catalog='GSC1', output_catalog='GAIA'):
     return delta_ra,delta_dec
 
 
-def extract_sources(img, fwhm=3.0, threshold=None, source_box=7,
-                    classify=True, output=None, plot=False, vmax=None):
-    """Use photutils to find sources in image based on segmentation."""
+def extract_sources(img, **pars):
+    """Use photutils to find sources in image based on segmentation.
+
+    Parameters
+    ==========
+    fwhm : float
+        Full-width half-maximum (fwhm) of the PSF in pixels.
+        Default: 3.0
+
+    threshold : float
+        Value from the image which serves as the limit for determining sources
+        Default: background+3*rms(background)
+
+    source_box : int
+        Size of box (in pixels) which defines the minimum size of a valid source
+
+    classify : boolean
+        Specify whether or not to apply classification based on invarient moments
+        of each source to determine whether or not a source is likely to be a
+        cosmic-ray, and not include those sources in the final catalog.
+        Default: True
+
+    output : str
+        If specified, write out the catalog of sources to the file with this name
+
+    plot : boolean
+        Specify whether or not to create a plot of the sources on a view of the image
+        Default: False
+
+    vmax : float
+        If plotting the sources, scale the image to this maximum value.
+
+    """
+    fwhm= pars.get('fwhm', 3.0)
+    threshold= pars.get('threshold', None)
+    source_box = pars.get('source_box', 7)
+    classify = pars.get('classify', True)
+    output = pars.get('output', None)
+    plot = pars.get('plot', False)
+    vmax = pars.get('vmax', None)
+
     if threshold is None:
         bkg_estimator = MedianBackground()
         bkg = Background2D(img, (50, 50), filter_size=(3, 3),
@@ -386,14 +429,21 @@ def classify_sources(catalog, sources=None):
     num_sources = sources[1] - sources[0]
     srctype = np.zeros((num_sources,),np.int32)
     for src in range(sources[0],sources[1]):
+        # Protect against spurious detections
+        src_x = catalog[src].xcentroid
+        src_y = catalog[src].ycentroid
+        if np.isnan(src_x) or np.isnan(src_y):
+            continue
         x,y = np.where(moments[src] == moments[src].max())
         if (x[0] > 1) and (y[0] > 1):
             srctype[src] = 1
 
     return srctype
 
-def build_source_catalog(image, refwcs, **kwargs):
+def generate_source_catalog(image, refwcs, **kwargs):
     """Build source catalog from input image using photutils.
+
+    This script borrows heavily from build_source_catalog
 
     The catalog returned by this function includes sources found in all chips
     of the input image with the positions translated to the coordinate frame
@@ -448,7 +498,6 @@ def build_source_catalog(image, refwcs, **kwargs):
     # if no refwcs specified, build one now...
     if refwcs is None:
         refwcs = build_reference_wcs([image])
-
     for chip in range(numSci):
         chip += 1
         # find sources in image
@@ -457,7 +506,12 @@ def build_source_catalog(image, refwcs, **kwargs):
             outroot = '{}_sci{}_src'.format(rootname, chip)
             kwargs['output'] = outroot
         imgarr = image['sci',chip].data
-        photmode = image['sci',chip].header['photmode']
+
+        if 'photmode' in image[0].header:
+            photmode = image[0].header['photmode']
+        else:
+            photmode = image['sci',chip].header['photmode']
+
         # apply any DQ array, if available
         if image.index_of(dqname):
             dqarr = image[dqname,chip].data
@@ -827,7 +881,7 @@ def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec
     ref_dec = refcat[refnames[1]]
 
     # Build source catalog for entire image
-    img_cat = build_source_catalog(image, refwcs, output=chip_catalog, classify=classify)
+    img_cat = generate_source_catalog(image, refwcs, output=chip_catalog, classify=classify)
     img_cat.write(filename.replace(".fits","_xy.cat"), format='ascii.no_header',
                     overwrite=True)
 
@@ -860,3 +914,55 @@ def find_hist2d_offset(filename, reference,  refwcs = None, refnames=['ra', 'dec
     print('best offset {} based on {} cross-matches'.format(hist2d_offset, nmatches))
 
     return hist2d_offset, seg_xy, ref_xy
+
+
+##############################
+#
+# Functions to support working with Tweakwcs
+#
+##############################
+def build_nddata(image):
+    """ Return a list of NDData objects for all chips in an image.
+
+    Parameters
+    ===========
+    image : filename, HDUList
+        Either filename or HDUList of a single HST observation
+
+    Returns
+    ========
+    ndlist : list
+        List of astropy NDData defined for all chips in input image
+
+    """
+    open_file = False
+    if isinstance(image, str):
+        hdulist = pf.open(image)
+        open_file = True
+    elif isinstance(image, pf.HDUList):
+        hdulist = image
+    else:
+        print("Wrong type of input, {}, for build_nddata...".format(type(image)))
+        raise ValueError
+
+    images = []
+    numsci = countExtn(hdulist)
+    for chip in range(1,numsci+1):
+        im_data = hdulist[('SCI', chip)].data
+        dq_data = hdulist[('DQ', chip)].data
+        w = wcsutil.HSTWCS(hdulist, ('SCI', chip))
+
+        # Below, simply consider non-zero DQ data as invalid.
+        # A more sophisticated approach would use bitmask module.
+        # Also, here we set group ID to a different number for each image,
+        # but for ACS images, for example, we likely would assign
+        # the same group ID to the images corresponding to different
+        # SCI extensions *of the same FITS file* so that they can be
+        # aligned together.
+        img = NDData(data=im_data, mask=dq_data != 0, wcs=w, meta={'chip': chip})
+        images.append(img)
+
+    if open_file:
+        hdulist.close()
+
+    return images
