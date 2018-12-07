@@ -48,7 +48,7 @@ detector_specific_params = {"acs":
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def check_and_get_data(input_list):
+def check_and_get_data(input_list,**pars):
     """Verify that all specified files are present. If not, retrieve them from MAST.
 
     Parameters
@@ -65,7 +65,7 @@ def check_and_get_data(input_list):
     totalInputList=[]
     for input_item in input_list:
         if input_item.endswith("0"): #asn table
-            totalInputList += aqutils.retrieve_observation(input_item)
+            totalInputList += aqutils.retrieve_observation(input_item,**pars)
 
         else: #single file rootname.
             fitsfilename = glob.glob("{}_flc.fits".format(input_item))
@@ -76,7 +76,7 @@ def check_and_get_data(input_list):
             if not os.path.exists(fitsfilename):
                 imghdu = fits.open(fitsfilename)
                 imgprimaryheader = imghdu[0].header
-                totalInputList += aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip())
+                totalInputList += aqutils.retrieve_observation(imgprimaryheader['ASN_ID'].strip(),**pars)
             else: totalInputList.append(fitsfilename)
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames

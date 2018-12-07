@@ -6,7 +6,7 @@ from astroquery.mast import Observations
 from astropy.table import Table
 
 
-def retrieve_observation(obsid, suffix=['FLC'], clobber=False):
+def retrieve_observation(obsid, suffix=['FLC'], archive=False,clobber=False):
     """Simple interface for retrieving an observation from the MAST archive
 
     If the input obsid is for an association, it will request all members with
@@ -24,6 +24,9 @@ def retrieve_observation(obsid, suffix=['FLC'], clobber=False):
     path : string
         Directory to use for writing out downloaded files.  If `None` (default),
         the current working directory will be used.
+
+    archive : Boolean
+        Retain copies of the downloaded files in the astroquery created sub-directories? Default is 'False'.
 
     clobber : Boolean
         Download and Overwrite existing files? Default is 'False'.
@@ -98,14 +101,17 @@ def retrieve_observation(obsid, suffix=['FLC'], clobber=False):
                 file_path = file.split(os.sep)
                 file_path.remove('.')
                 download_dir = file_path[0]
-            # Move downloaded file to current directory
+            # Move or copy downloaded file to current directory
             local_file = os.path.abspath(os.path.basename(file))
-            shutil.move(file, local_file)
+            if archive:
+                shutil.copy(file, local_file)
+            else:
+                shutil.move(file, local_file)
             # Record what files were downloaded and their current location
             local_files.append(os.path.basename(local_file))
         else:
             local_files.append(file)
-
-    # Remove astroquery created sub-directories
-    shutil.rmtree(download_dir)
+    if not archive:
+        # Remove astroquery created sub-directories
+        shutil.rmtree(download_dir)
     return local_files
