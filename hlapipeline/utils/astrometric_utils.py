@@ -447,7 +447,7 @@ def classify_sources(catalog, sources=None):
 
     return srctype
 
-def generate_source_catalog(image, refwcs, **kwargs):
+def generate_source_catalog(image, **kwargs):
     """Build source catalog from input image using photutils.
 
     This script borrows heavily from build_source_catalog
@@ -497,6 +497,7 @@ def generate_source_catalog(image, refwcs, **kwargs):
 
 
     """
+    refwcs = kwargs.get('refwcs',None)
     dqname = kwargs.get('dqname','DQ')
     output = kwargs.get('output',None)
     # Build source catalog for entire image
