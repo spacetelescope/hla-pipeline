@@ -141,7 +141,7 @@ def perform_align(input_list):
     doneFitting = False
     catalogIndex = 0
     while not doneFitting:
-        reference_catalog = generate_astrometric_catalog(processList, catalog='GAIADR2', existing_wcs=refwcs)
+        reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
 
         # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
         if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
