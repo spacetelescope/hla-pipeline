@@ -136,47 +136,62 @@ def perform_align(input_list):
     print("\nSUCCESS")
 
     # 4: Retrieve list of astrometric sources from database
-    print("-------------------- STEP 4: Detect astrometric sources --------------------")
     # While loop to accommodate using multiple catalogs
     doneFitting = False
     catalogIndex = 0
     while not doneFitting:
+        print(">>>>>>> CATALOG INDEX: ",catalogIndex)
+        print("-------------------- STEP 4: Detect astrometric sources --------------------")
+        print("Astrometric Catalog: ",catalogList[catalogIndex])
         reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
-
         # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-        if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
-            print("Not enough sources found in catalog" + catalogList[catalogIndex])
-            catalogIndex += 1
-            if catalogIndex <= (numCatalogs - 1):
+        # if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
+        #     print("Not enough sources found in catalog" + catalogList[catalogIndex])
+        #     catalogIndex += 1
+        #     if catalogIndex <= (numCatalogs - 1):
+        #         print("Try again with the next catalog")
+        #         continue
+        #     else:
+        #         print("Not enough sources found in any catalog - no processing done.")
+        #         return
+        if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+            print("\nSUCCESS")
+        # 5: Extract catalog of observable sources from each input image
+            print("-------------------- STEP 5: Source finding --------------------")
+            extracted_sources = generate_source_catalogs(processList)
+            for imgname in extracted_sources.keys():
+                # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
+                # TODO *** Is this no hope or iterate on threshold or ???
+                if len(extracted_sources[imgname]["catalog_table"]) < MIN_OBSERVABLE_THRESHOLD:
+                    print("Not enough sources ({}) found in image {}".format(len(extracted_sources[imgname]["catalog_table"]),imgname))
+                    return
+
+            print("\nSUCCESS")
+
+        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
+            print("-------------------- STEP 6: Cross matching and fitting --------------------")
+            # TODO *** catalog cross match call here
+            out_catalog=[] # *** PLACEHOLDER
+            if len(out_catalog) <= MIN_CROSS_MATCHES:
+                if catalogIndex < len(catalogList) -1:
+                    print("Not enough cross matches found between astrometric catalog and sources found in images")
+                    print("Try again with the next catalog")
+                    catalogIndex += 1
+                else:
+                    print("Not enough cross matches found in any catalog - no processing done.")
+                    return
+            else:
+                print("\nSUCCESS")
+                return
+        else:
+            if catalogIndex < len(catalogList)-1:
+                print("Not enough sources found in catalog" + catalogList[catalogIndex])
                 print("Try again with the next catalog")
-                continue
+                catalogIndex += 1
             else:
                 print("Not enough sources found in any catalog - no processing done.")
                 return
-        else:
-            doneFitting = True
-    print("\nSUCCESS")
-    # 5: Extract catalog of observable sources from each input image
-    print("-------------------- STEP 5: Source finding --------------------")
-    extracted_sources = generate_source_catalogs(processList)
-    for imgname in extracted_sources.keys():
-        # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
-        # TODO *** Is this no hope or iterate on threshold or ???
-        if len(extracted_sources[imgname]["catalog_table"]) < MIN_OBSERVABLE_THRESHOLD:
-            print("Not enough sources ({}) found in image {}".format(len(extracted_sources[imgname]["catalog_table"]),imgname))
-            return
 
-    print("\nSUCCESS")
-
-    # 6: Cross-match source catalog with astrometric reference source catalog
-    # TODO *** catalog cross match call here
-    # if len(out_catalog) < MIN_CROSS_MATCHS:
-    #     print("Not enough cross matches found between astrometric catalog and sources found in images")
-    #     print("Try again with the next catalog")
-    #     catalogIndex += 1
-    #     continue
-
-    # 7: Perform fit between source catalog and reference catalog
 
 # ----------------------------------------------------------------------------------------------------------------------
 
