@@ -32,6 +32,8 @@ MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 1.0
+MAX_ITERATIONS = 3
+TOL_SCALE_FACTOR = 1.5
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
@@ -183,7 +185,11 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     doneFitting = False
     catalogIndex = 0
     extracted_sources = None
+    iter_ctr = 0
+    tolerance = 100.
     while not doneFitting:
+        print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tolerance,catalogIndex,catalogList[catalogIndex]))
+        foo = input("hit return/enter to continue")
         skip_all_other_steps = False
         retry_fit = False
         print("-------------------- STEP 4: Detect astrometric sources --------------------")
@@ -240,8 +246,9 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
             # Specify matching algorithm to use
+            print("TOL: ",tolerance)
             match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
-                                     tolerance=100, use2dhist=False)
+                                     tolerance=tolerance, use2dhist=False)
             # Align images and correct WCS
             tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
 
@@ -265,6 +272,8 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
                 # print fit params to screen
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(
+                    iter_ctr, MAX_ITERATIONS, tolerance, catalogIndex, catalogList[catalogIndex]))
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
                     imgctr += 1
@@ -290,10 +299,21 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 elif max_rms_val > MAX_FIT_RMS:
                     if catalogIndex < numCatalogs-1:
                         print("Fit RMS value(s) X_rms= {}, Y_rms = {} greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1],MAX_FIT_RMS))
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        break
+                        if iter_ctr <= MAX_ITERATIONS:
+
+                            new_tolerance = radial_shift*TOL_SCALE_FACTOR
+                            print("Try again with tolerance reduced from {} to {}.".format(tolerance,new_tolerance))
+                            tolerance = (math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2))*TOL_SCALE_FACTOR
+                            iter_ctr+=1
+                            retry_fit = True
+                            break
+                        else:
+                            print("Try again with the next catalog")
+                            iter_ctr = 0
+                            tolerance = 100.
+                            catalogIndex += 1
+                            retry_fit = True
+                            break
                     else:
                         print("Fit RMS values too large using any catalog - no processing done.")
                         return(1)
