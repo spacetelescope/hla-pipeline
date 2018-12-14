@@ -12,6 +12,7 @@ import glob
 import math
 import numpy as np
 import os
+import pickle
 import pdb
 from stsci.tools import fileutil
 from stwcs.wcsutil import HSTWCS
@@ -205,7 +206,20 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         # 5: Extract catalog of observable sources from each input image
             print("-------------------- STEP 5: Source finding --------------------")
             if not extracted_sources:
-                extracted_sources = generate_source_catalogs(processList)
+                # extracted_sources = generate_source_catalogs(processList) # TODO: uncomment this once debugging is done
+
+                pickle_filename = "{}.source_catalog.pickle".format(processList[0]) # TODO: All this pickle stuff is only here for debugging. <START>
+                if os.path.exists(pickle_filename):
+                    pickle_in = open(pickle_filename, "rb")
+                    extracted_sources = pickle.load(pickle_in)
+                    print("Using sourcelist extracted from {} generated during the last run to save time.".format(pickle_filename))
+                else:
+                    extracted_sources = generate_source_catalogs(processList)
+                    pickle_out = open(pickle_filename, "wb")
+                    pickle.dump(extracted_sources, pickle_out)
+                    pickle_out.close()
+                    print("Wrote ",pickle_filename)# TODO: All this pickle stuff is only here for debugging. <END>
+
                 for imgname in extracted_sources.keys():
                     table=extracted_sources[imgname]["catalog_table"]
                     # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
@@ -248,6 +262,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                         return (1)
                 max_rms_val = max(item.meta['tweakwcs_info']['rms'])
                 num_xmatches = item.meta['tweakwcs_info']['nmatches']
+                radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
                 # print fit params to screen
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 if item.meta['chip'] == 1:
@@ -259,7 +274,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 for tweakwcs_info_key in tweakwcs_info_keys:
                     if not tweakwcs_info_key.startswith("matched"):
                         print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
-                # print("Radial shift: {}".format(math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)))
+                print("Radial shift: {}".format(radial_shift))
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
                 if num_xmatches < MIN_CROSS_MATCHES:
