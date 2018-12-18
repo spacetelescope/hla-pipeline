@@ -194,26 +194,10 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         skip_all_other_steps = False
         retry_fit = False
         print("-------------------- STEP 4: Detect astrometric sources --------------------")
-        # print("Astrometric Catalog: ",catalogList[catalogIndex])
-        # reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
-        # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-        # if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-        #     print("\nSUCCESS")
-        # else:
-        #     if catalogIndex <= numCatalogs - 1:
-        #         print("Not enough sources found in catalog " + catalogList[catalogIndex])
-        #         print("Try again with the next catalog")
-        #         catalogIndex += 1
-        #         retry_fit = True
-        #         skip_all_other_steps = True
-        #     else:
-        #         print("Not enough sources found in any catalog - no processing done.")
-        #         return (1)
-
-
         if catalogIndex <= numCatalogs - 1:
             print("Astrometric Catalog: ", catalogList[catalogIndex])
             reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+            # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
             if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
                 print("\nSUCCESS")
 
@@ -354,7 +338,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
                     imgctr += 1
-                    print("{}[SCI,{}]: X RMS: {}  Y RMS: {}".format(image_name,item.meta['chip'],item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1]))
+                print("{}[SCI,{}]: X RMS: {}  Y RMS: {}  nmatches: {}".format(image_name,item.meta['chip'],item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1],item.meta['tweakwcs_info']['nmatches']))
 
 
 
