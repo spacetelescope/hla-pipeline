@@ -32,8 +32,9 @@ MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 1.0
-MAX_ITERATIONS = 3
-TOL_SCALE_FACTOR = 1.5
+MAX_ITERATIONS = 10
+TOL_SCALE_FACTOR = 1.15#1.05
+TOL_START = 100.
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
@@ -186,28 +187,46 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     catalogIndex = 0
     extracted_sources = None
     iter_ctr = 0
-    tolerance = 100.
+    tol = TOL_START
     while not doneFitting:
-        print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tolerance,catalogIndex,catalogList[catalogIndex]))
-        foo = input("hit return/enter to continue")
+        #if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
+        #print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
         skip_all_other_steps = False
         retry_fit = False
         print("-------------------- STEP 4: Detect astrometric sources --------------------")
-        print("Astrometric Catalog: ",catalogList[catalogIndex])
-        reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+        # print("Astrometric Catalog: ",catalogList[catalogIndex])
+        # reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
         # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-        if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-            print("\nSUCCESS")
-        else:
-            if catalogIndex < numCatalogs - 1:
+        # if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+        #     print("\nSUCCESS")
+        # else:
+        #     if catalogIndex <= numCatalogs - 1:
+        #         print("Not enough sources found in catalog " + catalogList[catalogIndex])
+        #         print("Try again with the next catalog")
+        #         catalogIndex += 1
+        #         retry_fit = True
+        #         skip_all_other_steps = True
+        #     else:
+        #         print("Not enough sources found in any catalog - no processing done.")
+        #         return (1)
+
+
+        if catalogIndex <= numCatalogs - 1:
+            print("Astrometric Catalog: ", catalogList[catalogIndex])
+            reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+            if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+                print("\nSUCCESS")
+
+            else:
                 print("Not enough sources found in catalog " + catalogList[catalogIndex])
                 print("Try again with the next catalog")
                 catalogIndex += 1
                 retry_fit = True
                 skip_all_other_steps = True
-            else:
-                print("Not enough sources found in any catalog - no processing done.")
-                return (1)
+        else:
+            print("Not enough sources found in any catalog - no processing done.")
+            return (1)
+
         if not skip_all_other_steps:
         # 5: Extract catalog of observable sources from each input image
             print("-------------------- STEP 5: Source finding --------------------")
@@ -246,9 +265,9 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
             # Specify matching algorithm to use
-            print("TOL: ",tolerance)
+            print("TOL: ",tol)
             match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
-                                     tolerance=tolerance, use2dhist=False)
+                                     tolerance=tol, use2dhist=False)
             # Align images and correct WCS
             tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
 
@@ -258,11 +277,13 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 retry_fit = False
                 #Handle fitting failures (no matches found)
                 if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
-                    if catalogIndex < numCatalogs - 1:
+                    if catalogIndex <= numCatalogs - 1:
                         print("No cross matches found between astrometric catalog and sources found in images")
                         print("Try again with the next catalog")
                         catalogIndex += 1
                         retry_fit = True
+                        tol = TOL_START
+                        iter_ctr  = 0
                         break
                     else:
                         print("No cross matches found in any catalog - no processing done.")
@@ -273,7 +294,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 # print fit params to screen
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(
-                    iter_ctr, MAX_ITERATIONS, tolerance, catalogIndex, catalogList[catalogIndex]))
+                    iter_ctr, MAX_ITERATIONS, tol, catalogIndex, catalogList[catalogIndex]))
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
                     imgctr += 1
@@ -287,7 +308,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
                 if num_xmatches < MIN_CROSS_MATCHES:
-                    if catalogIndex < numCatalogs-1:
+                    if catalogIndex <= numCatalogs-1:
                         print("Not enough cross matches found between astrometric catalog and sources found in images")
                         print("Try again with the next catalog")
                         catalogIndex += 1
@@ -297,20 +318,27 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                         print("Not enough cross matches found in any catalog - no processing done.")
                         return(1)
                 elif max_rms_val > MAX_FIT_RMS:
-                    if catalogIndex < numCatalogs-1:
+                    if catalogIndex <= numCatalogs-1:
                         print("Fit RMS value(s) X_rms= {}, Y_rms = {} greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1],MAX_FIT_RMS))
                         if iter_ctr <= MAX_ITERATIONS:
 
-                            new_tolerance = radial_shift*TOL_SCALE_FACTOR
-                            print("Try again with tolerance reduced from {} to {}.".format(tolerance,new_tolerance))
-                            tolerance = (math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2))*TOL_SCALE_FACTOR
+                            #new_tolerance = math.ceil(radial_shift)
+                            new_tolerance =  radial_shift*TOL_SCALE_FACTOR
+                            if new_tolerance < 1.0:
+                                new_tolerance = 1.0
+                                print("New tolerance value below 1. Reset value to 1.0")
+                            if new_tolerance != 1. and new_tolerance == tol:
+                                print("Possible local minimum detected. Attempting to compensate by manually adjusting tolerance value..")
+                                new_tolerance = (radial_shift-1.0)*TOL_SCALE_FACTOR # try to push the fit away from a local minimum.
+                            print("Try again with tolerance reduced from {} to {}.".format(tol,new_tolerance))
+                            tol = new_tolerance
                             iter_ctr+=1
                             retry_fit = True
                             break
                         else:
                             print("Try again with the next catalog")
                             iter_ctr = 0
-                            tolerance = 100.
+                            tol = TOL_START
                             catalogIndex += 1
                             retry_fit = True
                             break
@@ -321,6 +349,14 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                     print("Fit calculations successful.")
         if not retry_fit:
             print("\nSUCCESS")
+            imgctr = 0
+            for item in imglist:
+                if item.meta['chip'] == 1:
+                    image_name = processList[imgctr]
+                    imgctr += 1
+                    print("{}[SCI,{}]: X RMS: {}  Y RMS: {}".format(image_name,item.meta['chip'],item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1]))
+
+
 
             # 7: Write new fit solution to input image headers
             print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
@@ -408,6 +444,7 @@ def generate_source_catalogs(imglist, **pars):
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         imgwcs = HSTWCS(imghdu, 1)
+        sourcecatalogdict[imgname]["params"]["platescale"] = imgwcs.pscale
         fwhmpsf_pix = sourcecatalogdict[imgname]["params"]['fwhmpsf']/imgwcs.pscale #Convert fwhmpsf from arsec to pixels
         sourcecatalogdict[imgname]["catalog_table"] = amutils.generate_source_catalog(imghdu, fwhm=fwhmpsf_pix, **pars)
 
