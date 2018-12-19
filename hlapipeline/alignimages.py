@@ -47,7 +47,7 @@ detector_specific_params = {"acs":
                                       "classify": False,
                                       "threshold": 10},
                                  "wfc":
-                                     {"fwhmpsf": 0.076,
+                                     {"fwhmpsf": 0.13,#0.076
                                       "classify": True,
                                       "threshold": -1.1}},
                             "wfc3":
@@ -337,6 +337,22 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                     print("Fit calculations successful.")
         if not retry_fit:
             print("\nSUCCESS")
+            #Print final summary of results as a giant wall of numbers...for now
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SUMMARY OF FINAL WCS SOLUTION <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            imgctr = 0
+            for item in imglist:
+                if item.meta['chip'] == 1:
+                    image_name = processList[imgctr]
+                    imgctr += 1
+                print("{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, X RMS: {}  Y RMS: {}, # MATCHES: {}"
+                      .format(image_name, item.meta['chip'],
+                      item.meta['tweakwcs_info']['shift'][0],
+                      item.meta['tweakwcs_info']['shift'][1],
+                      item.meta['tweakwcs_info']['rot'],
+                      item.meta['tweakwcs_info']['scale'],
+                      item.meta['tweakwcs_info']['rms'][0],
+                      item.meta['tweakwcs_info']['rms'][1],
+                      item.meta['tweakwcs_info']['nmatches']))
             # 7: Write new fit solution to input image headers
             print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
             if update_hdr_wcs:
