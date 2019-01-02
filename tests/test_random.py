@@ -110,7 +110,7 @@ class TestRandomAlignMosaic(BaseHLATest):
 
            print("TEST_RANDOM. Dataset: ", dataset)
            try:
-               result = alignimages.perform_align([dataset], ip_only=True)
+               result = alignimages.perform_align([dataset])
                if (result == 0):
                    print("TEST_RANDOM. Successful Dataset: ", dataset, "\n")
                    numSuccess += 1

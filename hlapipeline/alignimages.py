@@ -76,41 +76,26 @@ def check_and_get_data(input_list,**pars):
         list of full filenames
 
     """
-
-    # If all the items in the input list are IPPPSSOOTs (as will be for the random tests), just obtain
-    # the data via astroquery
-    ip_only = pars.get('ip_only', False)
-    if 'ip_only' in pars:
-        del pars['ip_only']
-
     totalInputList=[]
     for input_item in input_list:
-        if ip_only == True:
-            totalInputList += aqutils.retrieve_observation(input_item,**pars)
-        else:
+        filelist = aqutils.retrieve_observation(input_item,**pars)
+        if len(filelist) == 0:
+            # look for local copy of the file
+            fitsfilenames = sorted(glob.glob("{}_fl?.fits".format(input_item)))
+            if len(fitsfilenames) > 0:
+                imghdu = fits.open(fitsfilenames[0])
+                imgprimaryheader = imghdu[0].header
+                try:
+                    asnid = imgprimaryheader['ASN_ID'].strip().lower()
+                    if asnid == 'NONE':
+                        asnid = None
+                except KeyError:
+                    asnid = None
+                if asnid:
+                    filelist = aqutils.retrieve_observation(asnid,**pars)
+        if len(filelist) > 0:
+            totalInputList += filelist
 
-            if input_item.endswith("0"): #asn table
-                totalInputList += aqutils.retrieve_observation(input_item,**pars)
-
-            else: #single file rootname.
-                fitsfilename = glob.glob("{}_flc.fits".format(input_item))
-                if not fitsfilename:
-                    fitsfilename = glob.glob("{}_flt.fits".format(input_item))
-                fitsfilename = fitsfilename[0]
-
-                if not os.path.exists(fitsfilename):
-                    imghdu = fits.open(fitsfilename)
-                    imgprimaryheader = imghdu[0].header
-                    try:
-                        asnid = imgprimaryheader['ASN_ID'].strip().lower()
-                    except:
-                        asnid = 'NONE'
-                    if asnid[0] in ['i','j']:
-                        totalInputList += aqutils.retrieve_observation(asnid,**pars)
-                    else:
-                        totalInputList += aqutils.retrieve_observation(input_item, **pars) #try with ippssoot instead
-
-                else: totalInputList.append(fitsfilename)
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
@@ -137,7 +122,7 @@ def convert_string_tf_to_boolean(invalue):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False, ip_only=False):
+def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False):
     """Main calling function.
 
     Parameters
@@ -154,9 +139,6 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     update_hdr_wcs : Boolean
         Write newly computed WCS information to image image headers?
 
-    ip_only: Boolean
-        The input list contains only IPPPSSOOT names (ASN or individual file)
-
     Returns
     -------
     int value 0 if successful, int value 1 if unsuccessful
@@ -169,7 +151,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
     # 1: Interpret input data and optional parameters
     print("-------------------- STEP 1: Get data --------------------")
-    imglist = check_and_get_data(input_list, archive=archive, clobber=clobber, ip_only=ip_only)
+    imglist = check_and_get_data(input_list, archive=archive, clobber=clobber)
     print("\nSUCCESS")
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
@@ -264,7 +246,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                     else:
                         print("No cross matches found in any catalog - no processing done.")
                         return (1)
-                max_rms_val = item.meta['tweakwcs_info']['FIT_RMS'].value
+                max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
                 num_xmatches = item.meta['tweakwcs_info']['nmatches']
                 # print fit params to screen
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -503,7 +485,7 @@ def interpret_fit_rms(tweakwcs_output, reference_catalog):
         group_id = item.meta['group_id']
         item.meta['tweakwcs_info']['FIT_RMS'] = group_dict[group_id]['FIT_RMS']
         item.meta['tweakwcs_info']['TOTAL_RMS'] = total_rms
-        item.meta['tweakwcs_info']['NUM_FITS'] = len(obs_rms)
+        item.meta['tweakwcs_info']['NUM_FITS'] = len(group_ids)
 
 
 
