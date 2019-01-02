@@ -6,6 +6,8 @@
 
 from astropy.io import fits
 from astropy.table import Table
+from astropy.coordinates import SkyCoord, Angle
+from astropy import units as u
 from collections import OrderedDict
 from drizzlepac import updatehdr
 import glob
@@ -31,7 +33,7 @@ MIN_CATALOG_THRESHOLD = 3
 MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
-MAX_FIT_RMS = 1.0
+MAX_FIT_RMS = 10 # RMS now in mas, 1.0
 MAX_ITERATIONS = 10
 TOL_SCALE_FACTOR = 1.15#1.05
 TOL_START = 100.
@@ -47,7 +49,7 @@ detector_specific_params = {"acs":
                                       "classify": False,
                                       "threshold": 10},
                                  "wfc":
-                                     {"fwhmpsf": 0.13,#0.076
+                                     {"fwhmpsf": 0.076,#0.13
                                       "classify": True,
                                       "threshold": -1.1}},
                             "wfc3":
@@ -80,28 +82,24 @@ def check_and_get_data(input_list,**pars):
     """
     totalInputList=[]
     for input_item in input_list:
-        if input_item.endswith("0"): #asn table
-            totalInputList += aqutils.retrieve_observation(input_item,**pars)
-
-        else: #single file rootname.
-            fitsfilename = glob.glob("{}_flc.fits".format(input_item))
-            if not fitsfilename:
-                fitsfilename = glob.glob("{}_flt.fits".format(input_item))
-            fitsfilename = fitsfilename[0]
-
-            if not os.path.exists(fitsfilename):
-                imghdu = fits.open(fitsfilename)
+        filelist = aqutils.retrieve_observation(input_item,**pars)
+        if len(filelist) == 0:
+            # look for local copy of the file
+            fitsfilenames = sorted(glob.glob("{}_fl?.fits".format(input_item)))
+            if len(fitsfilenames) > 0:
+                imghdu = fits.open(fitsfilenames[0])
                 imgprimaryheader = imghdu[0].header
                 try:
                     asnid = imgprimaryheader['ASN_ID'].strip().lower()
-                except:
-                    asnid = 'NONE'
-                if asnid[0] in ['i','j']:
-                    totalInputList += aqutils.retrieve_observation(asnid,**pars)
-                else:
-                    totalInputList += aqutils.retrieve_observation(input_item, **pars) #try with ippssoot instead
+                    if asnid == 'NONE':
+                        asnid = None
+                except KeyError:
+                    asnid = None
+                if asnid:
+                    filelist = aqutils.retrieve_observation(asnid,**pars)
+        if len(filelist) > 0:
+            totalInputList += filelist
 
-            else: totalInputList.append(fitsfilename)
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
@@ -258,6 +256,8 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                                      tolerance=tol, use2dhist=False)
             # Align images and correct WCS
             tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
+            # Interpret RMS values from tweakwcs
+            interpret_fit_rms(imglist, reference_catalog)
 
             tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
             imgctr=0
@@ -276,7 +276,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                     else:
                         print("No cross matches found in any catalog - no processing done.")
                         return (1)
-                max_rms_val = max(item.meta['tweakwcs_info']['rms'])
+                max_rms_val = item.meta['tweakwcs_info']['FIT_RMS'].value
                 num_xmatches = item.meta['tweakwcs_info']['nmatches']
                 radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
                 # print fit params to screen
@@ -307,9 +307,8 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                         return(1)
                 elif max_rms_val > MAX_FIT_RMS:
                     if catalogIndex <= numCatalogs-1:
-                        print("Fit RMS value(s) X_rms= {}, Y_rms = {} greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['rms'][0], item.meta['tweakwcs_info']['rms'][1],MAX_FIT_RMS))
+                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['FIT_RMS'].value, MAX_FIT_RMS))
                         if iter_ctr <= MAX_ITERATIONS:
-
                             #new_tolerance = math.ceil(radial_shift)
                             new_tolerance =  radial_shift*TOL_SCALE_FACTOR
                             if new_tolerance < 1.0:
@@ -461,7 +460,7 @@ def generate_source_catalogs(imglist, **pars):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def update_image_wcs_info(tweakwcs_output,imagelist):
+def update_image_wcs_info(tweakwcs_output, imagelist):
     """Write newly computed WCS information to image headers
 
     Parameters
@@ -495,6 +494,65 @@ def update_image_wcs_info(tweakwcs_output,imagelist):
     print("CLOSE {}".format(hdulist[0].header['FILENAME'])) #TODO: Remove before deployment
     hdulist.flush() #close last image
     hdulist.close()
+
+
+# ======================================================================================================================
+
+def interpret_fit_rms(tweakwcs_output, reference_catalog):
+    """Interpret the FIT information to convert RMS to physical units
+
+    Parameters
+    ----------
+    tweakwcs_output : list
+        output of tweakwcs. Contains sourcelist tables, newly computed WCS info, etc. for every chip of every valid
+        input image.  This list gets updated, in-place, with the new RMS values;
+        specifically,
+
+            * 'FIT_RMS': RMS of the separations between fitted image positions and reference positions
+            * 'TOTAL_RMS': mean of the FIT_RMS values for all observations
+            * 'NUM_FITS': number of images/group_id's with successful fits included in the TOTAL_RMS
+
+        These entries are added to the 'tweakwcs_info' dictionary.
+
+    reference_catalog : astropy.Table
+        Table of reference source positions used for the fit
+
+    Returns
+    -------
+    Nothing
+    """
+    # Start by collecting information by group_id
+    group_ids = [info.meta['group_id'] for info in tweakwcs_output]
+    group_dict = {'avg_RMS':None}
+    obs_rms = []
+    for group_id in group_ids:
+        group_dict[group_id] = {'ref_idx':None, 'FIT_RMS':None}
+        for item in tweakwcs_output:
+            if item.meta['tweakwcs_info']['status'].startswith('FAILED'):
+                continue
+            if item.meta['group_id'] == group_id and \
+               group_dict[group_id]['ref_idx'] is None:
+                    tinfo = item.meta['tweakwcs_info']
+                    ref_idx = tinfo['fit_ref_idx']
+                    group_dict[group_id]['ref_idx'] = ref_idx
+                    ref_RA = reference_catalog[ref_idx]['RA']
+                    ref_DEC = reference_catalog[ref_idx]['DEC']
+                    img_coords = SkyCoord(tinfo['fit_RA'], tinfo['fit_DEC'],
+                                          unit='deg',frame='icrs')
+                    ref_coords = SkyCoord(ref_RA, ref_DEC, unit='deg',frame='icrs')
+                    fit_rms = np.std(Angle(img_coords.separation(ref_coords), unit=u.mas))
+                    group_dict[group_id]['FIT_RMS'] = fit_rms # as an Angle object
+                    obs_rms.append(fit_rms.value)
+    # Compute RMS for entire ASN/observation set
+    total_rms = np.mean(obs_rms)
+
+    # Now, append computed results to tweakwcs_output
+    for item in tweakwcs_output:
+        group_id = item.meta['group_id']
+        item.meta['tweakwcs_info']['FIT_RMS'] = group_dict[group_id]['FIT_RMS']
+        item.meta['tweakwcs_info']['TOTAL_RMS'] = total_rms
+        item.meta['tweakwcs_info']['NUM_FITS'] = len(obs_rms)
+
 
 
 # ======================================================================================================================
@@ -543,4 +601,3 @@ if __name__ == '__main__':
 
     # Get to it!
     return_value = perform_align(input_list,archive,clobber,debug,update_hdr_wcs)
-
