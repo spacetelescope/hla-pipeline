@@ -14,7 +14,6 @@ import glob
 import math
 import numpy as np
 import os
-import pickle
 import pdb
 from stsci.tools import fileutil
 from stwcs.wcsutil import HSTWCS
@@ -34,9 +33,6 @@ MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 10 # RMS now in mas, 1.0
-MAX_ITERATIONS = 10
-TOL_SCALE_FACTOR = 1.15#1.05
-TOL_START = 100.
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
@@ -49,7 +45,7 @@ detector_specific_params = {"acs":
                                       "classify": False,
                                       "threshold": 10},
                                  "wfc":
-                                     {"fwhmpsf": 0.076,#0.13
+                                     {"fwhmpsf": 0.076,
                                       "classify": True,
                                       "threshold": -1.1}},
                             "wfc3":
@@ -99,7 +95,7 @@ def check_and_get_data(input_list,**pars):
                     filelist = aqutils.retrieve_observation(asnid,**pars)
         if len(filelist) > 0:
             totalInputList += filelist
-
+    if len(filelist) > 0: totalInputList = sorted(list(set(totalInputList))) #remove duplicate list elements, sort unique list
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
@@ -126,7 +122,7 @@ def convert_string_tf_to_boolean(invalue):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def perform_align(input_list, archive=False, clobber=False, debug=False, update_hdr_wcs=False):
+def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False):
     """Main calling function.
 
     Parameters
@@ -139,10 +135,6 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
 
     clobber : Boolean
         Download and overwrite existing local copies of input files?
-
-    debug : Boolean
-        Save sourcelists in pickle files for reuse so that step 5 can be skipped for faster subsequent debug/development
-        runs?
 
     update_hdr_wcs : Boolean
         Write newly computed WCS information to image image headers?
@@ -188,49 +180,30 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
     doneFitting = False
     catalogIndex = 0
     extracted_sources = None
-    iter_ctr = 0
-    tol = TOL_START
     while not doneFitting:
-        #if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
-        #print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
         skip_all_other_steps = False
         retry_fit = False
         print("-------------------- STEP 4: Detect astrometric sources --------------------")
-        if catalogIndex <= numCatalogs - 1:
-            print("Astrometric Catalog: ", catalogList[catalogIndex])
-            reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
-            # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-            if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-                print("\nSUCCESS")
-
-            else:
+        print("Astrometric Catalog: ",catalogList[catalogIndex])
+        reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+        # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
+        if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+            print("\nSUCCESS")
+        else:
+            if catalogIndex < numCatalogs - 1:
                 print("Not enough sources found in catalog " + catalogList[catalogIndex])
                 print("Try again with the next catalog")
                 catalogIndex += 1
                 retry_fit = True
                 skip_all_other_steps = True
-        else:
-            print("Not enough sources found in any catalog - no processing done.")
-            return (1)
-
+            else:
+                print("Not enough sources found in any catalog - no processing done.")
+                return (1)
         if not skip_all_other_steps:
         # 5: Extract catalog of observable sources from each input image
             print("-------------------- STEP 5: Source finding --------------------")
             if not extracted_sources:
-                if debug:
-                    pickle_filename = "{}.source_catalog.pickle".format(processList[0])
-                    if os.path.exists(pickle_filename):
-                        pickle_in = open(pickle_filename, "rb")
-                        extracted_sources = pickle.load(pickle_in)
-                        print("Using sourcelist extracted from {} generated during the last run to save time.".format(pickle_filename))
-                    else:
-                        extracted_sources = generate_source_catalogs(processList)
-                        pickle_out = open(pickle_filename, "wb")
-                        pickle.dump(extracted_sources, pickle_out)
-                        pickle_out.close()
-                        print("Wrote ",pickle_filename)
-                else:
-                    extracted_sources = generate_source_catalogs(processList)
+                extracted_sources = generate_source_catalogs(processList)
                 for imgname in extracted_sources.keys():
                     table=extracted_sources[imgname]["catalog_table"]
                     # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
@@ -251,9 +224,8 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
         # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
             # Specify matching algorithm to use
-            print("TOL: ",tol)
             match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
-                                     tolerance=tol, use2dhist=False)
+                                     tolerance=100, use2dhist=False)
             # Align images and correct WCS
             tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
             # Interpret RMS values from tweakwcs
@@ -265,24 +237,19 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                 retry_fit = False
                 #Handle fitting failures (no matches found)
                 if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
-                    if catalogIndex <= numCatalogs - 1:
+                    if catalogIndex < numCatalogs - 1:
                         print("No cross matches found between astrometric catalog and sources found in images")
                         print("Try again with the next catalog")
                         catalogIndex += 1
                         retry_fit = True
-                        tol = TOL_START
-                        iter_ctr  = 0
                         break
                     else:
                         print("No cross matches found in any catalog - no processing done.")
                         return (1)
                 max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
                 num_xmatches = item.meta['tweakwcs_info']['nmatches']
-                radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
                 # print fit params to screen
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(
-                    iter_ctr, MAX_ITERATIONS, tol, catalogIndex, catalogList[catalogIndex]))
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
                     imgctr += 1
@@ -292,11 +259,11 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                 for tweakwcs_info_key in tweakwcs_info_keys:
                     if not tweakwcs_info_key.startswith("matched"):
                         print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
-                print("Radial shift: {}".format(radial_shift))
+                # print("Radial shift: {}".format(math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)))
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
                 if num_xmatches < MIN_CROSS_MATCHES:
-                    if catalogIndex <= numCatalogs-1:
+                    if catalogIndex < numCatalogs-1:
                         print("Not enough cross matches found between astrometric catalog and sources found in images")
                         print("Try again with the next catalog")
                         catalogIndex += 1
@@ -306,29 +273,12 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                         print("Not enough cross matches found in any catalog - no processing done.")
                         return(1)
                 elif max_rms_val > MAX_FIT_RMS:
-                    if catalogIndex <= numCatalogs-1:
-                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['FIT_RMS'].value, MAX_FIT_RMS))
-                        if iter_ctr <= MAX_ITERATIONS:
-                            #new_tolerance = math.ceil(radial_shift)
-                            new_tolerance =  radial_shift*TOL_SCALE_FACTOR
-                            if new_tolerance < 1.0:
-                                new_tolerance = 1.0
-                                print("New tolerance value below 1. Reset value to 1.0")
-                            if new_tolerance != 1. and new_tolerance == tol:
-                                print("Possible local minimum detected. Attempting to compensate by manually adjusting tolerance value..")
-                                new_tolerance = (radial_shift-1.0)*TOL_SCALE_FACTOR # try to push the fit away from a local minimum.
-                            print("Try again with tolerance reduced from {} to {}.".format(tol,new_tolerance))
-                            tol = new_tolerance
-                            iter_ctr+=1
-                            retry_fit = True
-                            break
-                        else:
-                            print("Try again with the next catalog")
-                            iter_ctr = 0
-                            tol = TOL_START
-                            catalogIndex += 1
-                            retry_fit = True
-                            break
+                    if catalogIndex < numCatalogs-1:
+                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['FIT_RMS'].value,MAX_FIT_RMS))
+                        print("Try again with the next catalog")
+                        catalogIndex += 1
+                        retry_fit = True
+                        break
                     else:
                         print("Fit RMS values too large using any catalog - no processing done.")
                         return(1)
@@ -336,22 +286,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                     print("Fit calculations successful.")
         if not retry_fit:
             print("\nSUCCESS")
-            #Print final summary of results as a giant wall of numbers...for now
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SUMMARY OF FINAL WCS SOLUTION <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-            imgctr = 0
-            for item in imglist:
-                if item.meta['chip'] == 1:
-                    image_name = processList[imgctr]
-                    imgctr += 1
-                print("{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, X RMS: {}  Y RMS: {}, # MATCHES: {}"
-                      .format(image_name, item.meta['chip'],
-                      item.meta['tweakwcs_info']['shift'][0],
-                      item.meta['tweakwcs_info']['shift'][1],
-                      item.meta['tweakwcs_info']['rot'],
-                      item.meta['tweakwcs_info']['scale'],
-                      item.meta['tweakwcs_info']['rms'][0],
-                      item.meta['tweakwcs_info']['rms'][1],
-                      item.meta['tweakwcs_info']['nmatches']))
+
             # 7: Write new fit solution to input image headers
             print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
             if update_hdr_wcs:
@@ -438,7 +373,6 @@ def generate_source_catalogs(imglist, **pars):
 
         # Identify sources in image, convert coords from chip x, y form to reference WCS sky RA, Dec form.
         imgwcs = HSTWCS(imghdu, 1)
-        sourcecatalogdict[imgname]["params"]["platescale"] = imgwcs.pscale
         fwhmpsf_pix = sourcecatalogdict[imgname]["params"]['fwhmpsf']/imgwcs.pscale #Convert fwhmpsf from arsec to pixels
         sourcecatalogdict[imgname]["catalog_table"] = amutils.generate_source_catalog(imghdu, fwhm=fwhmpsf_pix, **pars)
 
@@ -571,10 +505,6 @@ if __name__ == '__main__':
     PARSER.add_argument( '-c', '--clobber', required=False,choices=['True','False'],default='False',help='Download and '
                     'overwrite existing local copies of input files? Unless explicitly set, the default is "False".')
 
-    PARSER.add_argument( '-d', '--debug', required=False,choices=['True','False'],default='False',help='Save sourcelists'
-                    ' in pickle files for reuse so that step 5 can be skipped for faster subsequent debug/development '
-                    'runs?? Unless explicitly set, the default is "False".')
-
     PARSER.add_argument( '-u', '--update_hdr_wcs', required=False,choices=['True','False'],default='False',help='Write '
                     'newly computed WCS information to image image headers? Unless explicitly set, the default is '
                     '"False".')
@@ -595,9 +525,6 @@ if __name__ == '__main__':
 
     clobber = convert_string_tf_to_boolean(ARGS.clobber)
 
-    debug = convert_string_tf_to_boolean(ARGS.debug)
-
     update_hdr_wcs = convert_string_tf_to_boolean(ARGS.update_hdr_wcs)
-
     # Get to it!
-    return_value = perform_align(input_list,archive,clobber,debug,update_hdr_wcs)
+    return_value = perform_align(input_list,archive,clobber,update_hdr_wcs)
