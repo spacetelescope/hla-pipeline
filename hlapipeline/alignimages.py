@@ -313,8 +313,9 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                             #new_tolerance = math.ceil(radial_shift)
                             new_tolerance =  radial_shift*TOL_SCALE_FACTOR
                             if new_tolerance < 1.0:
+                                print("New tolerance value {} below 1.0; Reset New tolerance value to 1.0".format(new_tolerance))
                                 new_tolerance = 1.0
-                                print("New tolerance value below 1. Reset value to 1.0")
+                                
                             if new_tolerance != 1. and new_tolerance == tol:
                                 print("Possible local minimum detected. Attempting to compensate by manually adjusting tolerance value..")
                                 new_tolerance = (radial_shift-1.0)*TOL_SCALE_FACTOR # try to push the fit away from a local minimum.
