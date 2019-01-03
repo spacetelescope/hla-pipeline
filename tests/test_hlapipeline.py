@@ -7,6 +7,7 @@ import pytest
 
 from click.testing import CliRunner
 
+from hlapipeline import hlapipeline
 from hlapipeline import cli
 
 
