@@ -34,7 +34,7 @@ MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 10 # RMS now in mas, 1.0
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 20
 TOL_SCALE_FACTOR = 1.15#1.05
 TOL_START = 100.
 
@@ -100,6 +100,7 @@ def check_and_get_data(input_list,**pars):
         if len(filelist) > 0:
             totalInputList += filelist
 
+    if len(filelist) > 0: totalInputList = sorted(list(set(totalInputList))) #remove duplicate list elements, sort unique list
     print("TOTAL INPUT LIST: ",totalInputList)
     # TODO: add trap to deal with non-existent (incorrect) rootnames
     # TODO: Address issue about how the code will retrieve association information if there isn't a local file to get 'ASN_ID' header info
