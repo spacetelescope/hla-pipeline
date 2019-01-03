@@ -276,7 +276,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                     else:
                         print("No cross matches found in any catalog - no processing done.")
                         return (1)
-                max_rms_val = item.meta['tweakwcs_info']['FIT_RMS'].value
+                max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
                 num_xmatches = item.meta['tweakwcs_info']['nmatches']
                 radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
                 # print fit params to screen
@@ -551,7 +551,7 @@ def interpret_fit_rms(tweakwcs_output, reference_catalog):
         group_id = item.meta['group_id']
         item.meta['tweakwcs_info']['FIT_RMS'] = group_dict[group_id]['FIT_RMS']
         item.meta['tweakwcs_info']['TOTAL_RMS'] = total_rms
-        item.meta['tweakwcs_info']['NUM_FITS'] = len(obs_rms)
+        item.meta['tweakwcs_info']['NUM_FITS'] = len(group_ids)
 
 
 
