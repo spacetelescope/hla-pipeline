@@ -177,7 +177,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
 
     # 4: Extract catalog of observable sources from each input image
-    print("-------------------- STEP 5: Source finding --------------------")
+    print("-------------------- STEP 4: Source finding --------------------")
     extracted_sources = generate_source_catalogs(processList)
 
     for imgname in extracted_sources.keys():
@@ -193,37 +193,63 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     # attach source catalogs to them.
     imglist = []
     for group_id, image in enumerate(processList):
-        imglist.extend(amutils.build_nddata(image, group_id,
-                                            extracted_sources[image]['catalog_table']))
+        img = amutils.build_nddata(image, group_id,
+                                   extracted_sources[image]['catalog_table'])
+        for im in img:
+            im.meta['name'] = image
+        imglist.extend(img)
+
+    # add the name of the image to the imglist object
     print("\nSUCCESS")
 
     # 5: Retrieve list of astrometric sources from database
-    # While loop to accommodate using multiple catalogs
-    doneFitting = False
     catalogIndex = 0
-    extracted_sources = None
-    while not doneFitting:
-        skip_all_other_steps = False
-        retry_fit = False
-        print("-------------------- STEP 5: Detect astrometric sources --------------------")
+    print("-------------------- STEP 5: Detect Gaia astrometric sources --------------------")
+    print("Astrometric Catalog: ",catalogList[catalogIndex])
+    reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+
+    if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
+        print("Not enough sources found in Gaia catalog " + catalogList[catalogIndex])
+        print("Try again with other catalog")
+        catalogIndex += 1
+        retry_fit = True
+        skip_all_other_steps = True
+    else:
+        print("-------------------- STEP 6: Cross matching and fitting --------------------")
+        # Specify matching algorithm to use
+        match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
+                                 tolerance=100, use2dhist=False)
+        # Align images and correct WCS
+        tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
+        # Interpret RMS values from tweakwcs
+        interpret_fit_rms(imglist, reference_catalog)
+
+        # determine the quality of the fit
+        best_fit, best_num_fit  = determine_fit_quality(imglist)
+
+
+        # 6b: If available, the logic tree for fitting with different algorithms 
+        # would be here.   These would only be invoked if the above step failed.  
+        # At this time, only one algorithm is being used and there are not 
+        # currently other cases to run on the images and so this is empty.   This 
+        # section might be a good area to create as a function if this will be repeated
+        # with other catalogs. 
+
+
+
+    # 8: If available, try the fitting with different catalogs
+    for catalogIndex in range(1, len(catalogList)):
+        print("-------------------- STEP 5: Detect catalog astrometric sources --------------------")
         print("Astrometric Catalog: ",catalogList[catalogIndex])
         reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
-        # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-        if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-            print("\nSUCCESS")
-        else:
-            if catalogIndex < numCatalogs - 1:
-                print("Not enough sources found in catalog " + catalogList[catalogIndex])
-                print("Try again with the next catalog")
-                catalogIndex += 1
-                retry_fit = True
-                skip_all_other_steps = True
-            else:
-                print("Not enough sources found in any catalog - no processing done.")
-                return (1)
-        if not skip_all_other_steps:
 
-        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
+        if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
+            print("Not enough sources found in catalog " + catalogList[catalogIndex])
+            print("Try again with other catalog")
+            catalogIndex += 1
+            retry_fit = True
+            skip_all_other_steps = True
+        else:
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
             # Specify matching algorithm to use
             match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
@@ -233,71 +259,83 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
             # Interpret RMS values from tweakwcs
             interpret_fit_rms(imglist, reference_catalog)
 
-            tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
-            imgctr=0
-            for item in imglist:
-                retry_fit = False
-                #Handle fitting failures (no matches found)
-                if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
-                    if catalogIndex < numCatalogs - 1:
-                        print("No cross matches found between astrometric catalog and sources found in images")
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        break
-                    else:
-                        print("No cross matches found in any catalog - no processing done.")
-                        return (1)
-                max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
-                num_xmatches = item.meta['tweakwcs_info']['nmatches']
-                # print fit params to screen
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                if item.meta['chip'] == 1:
-                    image_name = processList[imgctr]
-                    imgctr += 1
-                print("image: {}".format(image_name))
-                print("chip: {}".format(item.meta['chip']))
-                print("group_id: {}".format(item.meta['group_id']))
-                for tweakwcs_info_key in tweakwcs_info_keys:
-                    if not tweakwcs_info_key.startswith("matched"):
-                        print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
-                # print("Radial shift: {}".format(math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)))
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            # determine the quality of the fit
+            rms_fit, num_fit  = determine_fit_quality(imglist)
 
-                if num_xmatches < MIN_CROSS_MATCHES:
-                    if catalogIndex < numCatalogs-1:
-                        print("Not enough cross matches found between astrometric catalog and sources found in images")
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        break
-                    else:
-                        print("Not enough cross matches found in any catalog - no processing done.")
-                        return(1)
-                elif max_rms_val > MAX_FIT_RMS:
-                    if catalogIndex < numCatalogs-1:
-                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['FIT_RMS'].value,MAX_FIT_RMS))
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        break
-                    else:
-                        print("Fit RMS values too large using any catalog - no processing done.")
-                        return(1)
-                else:
-                    print("Fit calculations successful.")
-        if not retry_fit:
-            print("\nSUCCESS")
 
-            # 7: Write new fit solution to input image headers
-            print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
-            if update_hdr_wcs:
-                update_image_wcs_info(imglist, processList)
-                print("\nSUCCESS")
-            else:
-                print("\n STEP SKIPPED")
-            return (0)
+    # 7: Write new fit solution to input image headers
+    print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
+    if update_hdr_wcs:
+        update_image_wcs_info(imglist, processList)
+        print("\nSUCCESS")
+    else:
+        print("\n STEP SKIPPED")
+    return (0)
 
+
+    # While loop to accommodate using multiple catalogs
+    #doneFitting = False
+    #catalogIndex = 0
+    #while not doneFitting:
+        #skip_all_other_steps = False
+        #retry_fit = False
+        ## The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
+        #if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+            #print("\nSUCCESS")
+        #else:
+            #if catalogIndex < numCatalogs - 1:
+            #else:
+                #print("Not enough sources found in any catalog - no processing done.")
+                #return (1)
+        #if not skip_all_other_steps:
+
+        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
+
+
+
+
+
+
+def determine_fit_quality(imglist, print_fit_parameters=False):
+    """Determine the quality of the fit to the data
+    """
+    tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
+    imgctr=0
+    max_rms_val = 1e9
+    num_xmatches = 0
+    for item in imglist:
+        image_name = item.meta['name']
+        #Handle fitting failures (no matches found)
+        if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
+                print("No cross matches found in any catalog for {} - no processing done.".format(image_name))
+                continue
+        fit_rms_val = item.meta['tweakwcs_info']['FIT_RMS']
+        max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
+        num_xmatches = item.meta['tweakwcs_info']['nmatches']
+        if num_xmatches < MIN_CROSS_MATCHES:
+            if catalogIndex < numCatalogs-1:
+                print("Not enough cross matches found between astrometric catalog and sources found in {}".format())
+                continue
+        print('RESULTS FOR {} Chip {}: FIT_RMS = {} mas, TOTOAL_RMS = {} mas, NUM =  {}'.format(image_name, item.meta['chip'], fit_rms_val, max_rms_val, num_xmatches))
+        # print fit params to screen
+        if print_fit_parameters:
+            print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            print("image: {}".format(image_name))
+            print("chip: {}".format(item.meta['chip']))
+            print("group_id: {}".format(item.meta['group_id']))
+            for tweakwcs_info_key in tweakwcs_info_keys:
+                if not tweakwcs_info_key.startswith("matched"):
+                    print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
+            # print("Radial shift: {}".format(math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)))
+            print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+
+    if max_rms_val > MAX_FIT_RMS:
+        print("Total fit RMS value = {} mas greater than the maximum threshold value {}.".format(max_rms_val, MAX_FIT_RMS))
+        print("Try again with the next catalog")
+    else:
+        print("Fit calculations successful.")
+
+    return max_rms_val, num_xmatches
 
 
 # ----------------------------------------------------------------------------------------------------------------------
