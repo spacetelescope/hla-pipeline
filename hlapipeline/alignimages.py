@@ -273,31 +273,30 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     return (0)
 
 
-    # While loop to accommodate using multiple catalogs
-    #doneFitting = False
-    #catalogIndex = 0
-    #while not doneFitting:
-        #skip_all_other_steps = False
-        #retry_fit = False
-        ## The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-        #if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-            #print("\nSUCCESS")
-        #else:
-            #if catalogIndex < numCatalogs - 1:
-            #else:
-                #print("Not enough sources found in any catalog - no processing done.")
-                #return (1)
-        #if not skip_all_other_steps:
-
-        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
-
-
-
-
-
-
 def determine_fit_quality(imglist, print_fit_parameters=False):
     """Determine the quality of the fit to the data
+
+    Parameters
+    ----------
+    imglist: list
+        output of interpret_fits. Contains sourcelist tables, newly computed WCS info, etc. for every chip of every valid
+        input image.  This list should have been  updated, in-place, with the new RMS values;
+        specifically,
+
+            * 'FIT_RMS': RMS of the separations between fitted image positions and reference positions
+            * 'TOTAL_RMS': mean of the FIT_RMS values for all observations
+            * 'NUM_FITS': number of images/group_id's with successful fits included in the TOTAL_RMS
+
+        These entries are added to the 'tweakwcs_info' dictionary.
+
+    Returns
+    -------
+    max_rms_val : float
+        The best Totol rms dteremined from all of the images
+
+    num_xmatches: int
+        The number of stars used in matching the data
+
     """
     tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
     imgctr=0
