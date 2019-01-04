@@ -33,6 +33,7 @@ MIN_OBSERVABLE_THRESHOLD = 10
 MIN_CROSS_MATCHES = 3
 MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 10 # RMS now in mas, 1.0
+MAX_FIT_LIMIT = 1000 # Maximum RMS that a result is useful
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
@@ -204,6 +205,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
     # 5: Retrieve list of astrometric sources from database
     catalogIndex = 0
+    best_fit = MAX_FIT_LIMIT
     print("-------------------- STEP 5: Detect Gaia astrometric sources --------------------")
     print("Astrometric Catalog: ",catalogList[catalogIndex])
     reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
@@ -215,7 +217,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         retry_fit = True
         skip_all_other_steps = True
     else:
-        print("-------------------- STEP 6: Cross matching and fitting --------------------")
+        print("-------------------- STEP 5b: Cross matching and fitting --------------------")
         # Specify matching algorithm to use
         match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
                                  tolerance=100, use2dhist=False)
@@ -227,6 +229,8 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         # determine the quality of the fit
         best_fit, best_num_fit  = determine_fit_quality(imglist)
 
+        for item in imglist:
+            item.best_meta = item.meta.copy()
 
         # 6b: If available, the logic tree for fitting with different algorithms 
         # would be here.   These would only be invoked if the above step failed.  
@@ -238,34 +242,55 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
 
     # 8: If available, try the fitting with different catalogs
-    for catalogIndex in range(1, len(catalogList)):
-        print("-------------------- STEP 5: Detect catalog astrometric sources --------------------")
-        print("Astrometric Catalog: ",catalogList[catalogIndex])
-        reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+    if best_fit > MAX_FIT_RMS:
+        for catalogIndex in range(1, len(catalogList)):
+            print("-------------------- STEP 6: Detect catalog astrometric sources --------------------")
+            print("Astrometric Catalog: ",catalogList[catalogIndex])
+            reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
 
-        if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
-            print("Not enough sources found in catalog " + catalogList[catalogIndex])
-            print("Try again with other catalog")
-            catalogIndex += 1
-            retry_fit = True
-            skip_all_other_steps = True
-        else:
-            print("-------------------- STEP 6: Cross matching and fitting --------------------")
-            # Specify matching algorithm to use
-            match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
-                                     tolerance=100, use2dhist=False)
-            # Align images and correct WCS
-            tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
-            # Interpret RMS values from tweakwcs
-            interpret_fit_rms(imglist, reference_catalog)
+            if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
+                print("Not enough sources found in catalog " + catalogList[catalogIndex])
+                print("Try again with other catalog")
+                catalogIndex += 1
+                retry_fit = True
+                skip_all_other_steps = True
+            else:
+                print("-------------------- STEP 6b: Cross matching and fitting --------------------")
+                # Specify matching algorithm to use
+                match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
+                                         tolerance=100, use2dhist=False)
+                # Align images and correct WCS
+                tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
+                # Interpret RMS values from tweakwcs
+                interpret_fit_rms(imglist, reference_catalog)
 
-            # determine the quality of the fit
-            rms_fit, num_fit  = determine_fit_quality(imglist)
+                # determine the quality of the fit
+                rms_fit, num_fit  = determine_fit_quality(imglist)
+
+                # update the best fit 
+                if rms_fit < best_fit:
+                   best_fit = rms_fit
+                   best_num_fit = num_fit
+                   for item in imglist:
+                       item.best_meta = item.meta.copy()
+
 
 
     # 7: Write new fit solution to input image headers
     print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
+    if best_fit < MAX_FIT_RMS:
+       print("The fitting process was successful with a best fit total rms of {} mas".format(best_fit))
+    else:
+       print("The fitting process was unsuccessful with a best fit total rms of {} mas".format(best_fit))
+
+    if best_fit < MAX_FIT_LIMIT:
+        # update to the meta information with the lowest rms if it is reasonable
+        for img in imglist:
+            item.meta = item.best_meta
+
+
     if update_hdr_wcs:
+
         update_image_wcs_info(imglist, processList)
         print("\nSUCCESS")
     else:
@@ -273,7 +298,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     return (0)
 
 
-def determine_fit_quality(imglist, print_fit_parameters=False):
+def determine_fit_quality(imglist, print_fit_parameters=True):
     """Determine the quality of the fit to the data
 
     Parameters
