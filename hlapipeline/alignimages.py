@@ -123,7 +123,7 @@ def convert_string_tf_to_boolean(invalue):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False):
+def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False, print_fit_parameters=True):
     """Main calling function.
 
     Parameters
@@ -227,7 +227,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         interpret_fit_rms(imglist, reference_catalog)
 
         # determine the quality of the fit
-        best_fit, best_num_fit  = determine_fit_quality(imglist)
+        best_fit, best_num_fit  = determine_fit_quality(imglist, print_fit_parameters=print_fit_parameters)
 
         for item in imglist:
             item.best_meta = item.meta.copy()
@@ -265,7 +265,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 interpret_fit_rms(imglist, reference_catalog)
 
                 # determine the quality of the fit
-                rms_fit, num_fit  = determine_fit_quality(imglist)
+                rms_fit, num_fit  = determine_fit_quality(imglist, print_fit_parameters=print_fit_parameters)
 
                 # update the best fit 
                 if rms_fit < best_fit:
