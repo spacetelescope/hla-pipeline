@@ -175,7 +175,29 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     refwcs = amutils.build_reference_wcs(processList)
     print("\nSUCCESS")
 
-    # 4: Retrieve list of astrometric sources from database
+
+    # 4: Extract catalog of observable sources from each input image
+    print("-------------------- STEP 5: Source finding --------------------")
+    extracted_sources = generate_source_catalogs(processList)
+
+    for imgname in extracted_sources.keys():
+        table=extracted_sources[imgname]["catalog_table"]
+        # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
+        total_num_sources = 0
+        for chipnum in table.keys():
+            total_num_sources += len(table[chipnum])
+        if total_num_sources < MIN_OBSERVABLE_THRESHOLD:
+            print("Not enough sources ({}) found in image {}".format(total_num_sources,imgname))
+            return(1)
+    # Convert input images to tweakwcs-compatible NDData objects and
+    # attach source catalogs to them.
+    imglist = []
+    for group_id, image in enumerate(processList):
+        imglist.extend(amutils.build_nddata(image, group_id,
+                                            extracted_sources[image]['catalog_table']))
+    print("\nSUCCESS")
+
+    # 5: Retrieve list of astrometric sources from database
     # While loop to accommodate using multiple catalogs
     doneFitting = False
     catalogIndex = 0
@@ -183,7 +205,7 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     while not doneFitting:
         skip_all_other_steps = False
         retry_fit = False
-        print("-------------------- STEP 4: Detect astrometric sources --------------------")
+        print("-------------------- STEP 5: Detect astrometric sources --------------------")
         print("Astrometric Catalog: ",catalogList[catalogIndex])
         reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
         # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
@@ -200,26 +222,6 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 print("Not enough sources found in any catalog - no processing done.")
                 return (1)
         if not skip_all_other_steps:
-        # 5: Extract catalog of observable sources from each input image
-            print("-------------------- STEP 5: Source finding --------------------")
-            if not extracted_sources:
-                extracted_sources = generate_source_catalogs(processList)
-                for imgname in extracted_sources.keys():
-                    table=extracted_sources[imgname]["catalog_table"]
-                    # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
-                    total_num_sources = 0
-                    for chipnum in table.keys():
-                        total_num_sources += len(table[chipnum])
-                    if total_num_sources < MIN_OBSERVABLE_THRESHOLD:
-                        print("Not enough sources ({}) found in image {}".format(total_num_sources,imgname))
-                        return(1)
-            # Convert input images to tweakwcs-compatible NDData objects and
-            # attach source catalogs to them.
-            imglist = []
-            for group_id, image in enumerate(processList):
-                imglist.extend(amutils.build_nddata(image, group_id,
-                                                    extracted_sources[image]['catalog_table']))
-            print("\nSUCCESS")
 
         # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
