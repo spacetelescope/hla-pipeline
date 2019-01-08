@@ -345,14 +345,14 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
                     imgctr += 1
-                print("{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, X RMS: {}  Y RMS: {}, # MATCHES: {}"
+                print("{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, FIT RMS: {}, TOTAL RMS: {}, # MATCHES: {}"
                       .format(image_name, item.meta['chip'],
                       item.meta['tweakwcs_info']['shift'][0],
                       item.meta['tweakwcs_info']['shift'][1],
                       item.meta['tweakwcs_info']['rot'],
                       item.meta['tweakwcs_info']['scale'],
-                      item.meta['tweakwcs_info']['rms'][0],
-                      item.meta['tweakwcs_info']['rms'][1],
+                      item.meta['tweakwcs_info']['FIT_RMS'],
+                      item.meta['tweakwcs_info']['TOTAL_RMS'],
                       item.meta['tweakwcs_info']['nmatches']))
             # 7: Write new fit solution to input image headers
             print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
