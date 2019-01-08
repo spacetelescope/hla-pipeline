@@ -191,9 +191,11 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
     extracted_sources = None
     iter_ctr = 0
     tol = TOL_START
+    fout = open("iteration_value.dat", 'w') #text file that iteration #, tolerance values, and RMS values will be written to
+    fout.write("Iteration Tolerance fit_rms total_rms\n")
     while not doneFitting:
-        #if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
-        #print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
+        # if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
+        # print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
         skip_all_other_steps = False
         retry_fit = False
         print("-------------------- STEP 4: Detect astrometric sources --------------------")
@@ -295,7 +297,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                         print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
                 print("Radial shift: {}".format(radial_shift))
                 print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-
+                fout.write("{} {} {} {}\n".format(iter_ctr,tol,item.meta['tweakwcs_info']['FIT_RMS'],item.meta['tweakwcs_info']['TOTAL_RMS']))
                 if num_xmatches < MIN_CROSS_MATCHES:
                     if catalogIndex <= numCatalogs-1:
                         print("Not enough cross matches found between astrometric catalog and sources found in images")
