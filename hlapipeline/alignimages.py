@@ -343,6 +343,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
             #Print final summary of results as a giant wall of numbers...for now
             print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SUMMARY OF FINAL WCS SOLUTION <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
             imgctr = 0
+            print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  Astrometric Catalog:{}".format(iter_ctr, MAX_ITERATIONS, tol, catalogList[catalogIndex]))
             for item in imglist:
                 if item.meta['chip'] == 1:
                     image_name = processList[imgctr]
