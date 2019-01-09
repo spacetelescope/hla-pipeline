@@ -46,7 +46,7 @@ class TestRandomAlignMosaic(BaseHLATest):
         inputListFiles = ['ACSList50R_v2.csv', 'WFC3List50R_v2.csv']
 
         # Desired number of random entries for testing from each input CSV
-        inputNumEntries = 5#50
+        inputNumEntries = 50
 
         # Seed for random number generator
         inputSeedValue = 1
@@ -125,10 +125,10 @@ class TestRandomAlignMosaic(BaseHLATest):
                traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
                print("TEST_RANDOM. Exception Dataset: ", dataset, "\n")
                continue
-           #no trace computing
-           cmd = "rm -f {}/*.fits".format(os.getcwd())
-           print(cmd)
-           os.system(cmd)
+           # #no trace computing
+           # cmd = "rm -f {}/*.fits".format(os.getcwd())
+           # print(cmd)
+           # os.system(cmd)
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets
         print('TEST_RANDOM. Number of successful tests: ', numSuccess, ' Total number of tests: ', numAllDatasets, ' Percent success: ', percentSuccess*100.0)
