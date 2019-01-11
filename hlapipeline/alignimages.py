@@ -251,7 +251,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                                                     extracted_sources[image]['catalog_table']))
             print("\nSUCCESS")
 
-        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog
+        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog, iterate to find best tolerance value for tweakwcs.TPMatch()
             print("-------------------- STEP 6: Cross matching and fitting --------------------")
             # Specify matching algorithm to use
             print("TOL: ",tol)
@@ -304,6 +304,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                         print("Try again with the next catalog")
                         catalogIndex += 1
                         retry_fit = True
+                        tol = TOL_START
                         break
                     else:
                         print("Not enough cross matches found in any catalog - no processing done.")
@@ -327,7 +328,7 @@ def perform_align(input_list, archive=False, clobber=False, debug=False, update_
                             retry_fit = True
                             break
                         else:
-                            print("Try again with the next catalog")
+                            print("Maximum number of iterations ({}) reached using the {} catalog. Try again with the next catalog".format(MAX_ITERATIONS,catalogList[catalogIndex]))
                             iter_ctr = 0
                             tol = TOL_START
                             catalogIndex += 1
