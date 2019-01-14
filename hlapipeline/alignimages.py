@@ -127,251 +127,6 @@ def convert_string_tf_to_boolean(invalue):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def perform_align(input_list, archive=False, clobber=False, debug=False, update_hdr_wcs=False):
-    """Main calling function.
-
-    Parameters
-    ----------
-    input_list : list
-        List of one or more IPPSSOOTs (rootnames) to align.
-
-    archive : Boolean
-        Retain copies of the downloaded files in the astroquery created sub-directories?
-
-    clobber : Boolean
-        Download and overwrite existing local copies of input files?
-
-    debug : Boolean
-        Save sourcelists in pickle files for reuse so that step 5 can be skipped for faster subsequent debug/development
-        runs?
-
-    update_hdr_wcs : Boolean
-        Write newly computed WCS information to image image headers?
-
-    Returns
-    -------
-    int value 0 if successful, int value 1 if unsuccessful
-
-    """
-
-    # Define astrometric catalog list in priority order
-    catalogList = ['GAIADR2', 'GSC241']
-    numCatalogs = len(catalogList)
-
-    # 1: Interpret input data and optional parameters
-    print("-------------------- STEP 1: Get data --------------------")
-    imglist = check_and_get_data(input_list, archive=archive, clobber=clobber)
-    print("\nSUCCESS")
-
-    # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
-    print("-------------------- STEP 2: Filter data --------------------")
-    filteredTable = filter.analyze_data(imglist)
-
-    # Check the table to determine if there is any viable data to be aligned.  The
-    # 'doProcess' column (bool) indicates the image/file should or should not be used
-    # for alignment purposes.
-    if filteredTable['doProcess'].sum() == 0:
-        print("No viable images in filtered table - no processing done.\n")
-        return(1)
-
-    # Get the list of all "good" files to use for the alignment
-    processList = filteredTable['imageName'][np.where(filteredTable['doProcess'])]
-    processList = list(processList) #Convert processList from numpy list to regular python list
-    print("\nSUCCESS")
-
-    # 3: Build WCS for full set of input observations
-    print("-------------------- STEP 3: Build WCS --------------------")
-    refwcs = amutils.build_reference_wcs(processList)
-    print("\nSUCCESS")
-
-    # 4: Retrieve list of astrometric sources from database
-    # While loop to accommodate using multiple catalogs
-    doneFitting = False
-    catalogIndex = 0
-    extracted_sources = None
-    iter_ctr = 0
-    tol = TOL_START
-    fout = open("iteration_value.dat", 'w') #text file that iteration #, tolerance values, and RMS values will be written to
-    fout.write("Iteration Tolerance fit_rms total_rms\n")
-    while not doneFitting:
-        # if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
-        # print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
-        skip_all_other_steps = False
-        retry_fit = False
-        print("-------------------- STEP 4: Detect astrometric sources --------------------")
-        if catalogIndex <= numCatalogs - 1:
-            print("Astrometric Catalog: ", catalogList[catalogIndex])
-            reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
-            # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
-            if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
-                print("\nSUCCESS")
-
-            else:
-                print("Not enough sources found in catalog " + catalogList[catalogIndex])
-                print("Try again with the next catalog")
-                catalogIndex += 1
-                retry_fit = True
-                skip_all_other_steps = True
-        else:
-            print("Not enough sources found in any catalog - no processing done.")
-            return (1)
-
-        if not skip_all_other_steps:
-        # 5: Extract catalog of observable sources from each input image
-            print("-------------------- STEP 5: Source finding --------------------")
-            if not extracted_sources:
-                if debug:
-                    pickle_filename = "{}.source_catalog.pickle".format(processList[0])
-                    if os.path.exists(pickle_filename):
-                        pickle_in = open(pickle_filename, "rb")
-                        extracted_sources = pickle.load(pickle_in)
-                        print("Using sourcelist extracted from {} generated during the last run to save time.".format(pickle_filename))
-                    else:
-                        extracted_sources = generate_source_catalogs(processList)
-                        pickle_out = open(pickle_filename, "wb")
-                        pickle.dump(extracted_sources, pickle_out)
-                        pickle_out.close()
-                        print("Wrote ",pickle_filename)
-                else:
-                    extracted_sources = generate_source_catalogs(processList)
-                for imgname in extracted_sources.keys():
-                    table=extracted_sources[imgname]["catalog_table"]
-                    # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
-                    total_num_sources = 0
-                    for chipnum in table.keys():
-                        total_num_sources += len(table[chipnum])
-                    if total_num_sources < MIN_OBSERVABLE_THRESHOLD:
-                        print("Not enough sources ({}) found in image {}".format(total_num_sources,imgname))
-                        return(1)
-            # Convert input images to tweakwcs-compatible NDData objects and
-            # attach source catalogs to them.
-            imglist = []
-            for group_id, image in enumerate(processList):
-                imglist.extend(amutils.build_nddata(image, group_id,
-                                                    extracted_sources[image]['catalog_table']))
-            print("\nSUCCESS")
-
-        # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog, iterate to find best tolerance value for tweakwcs.TPMatch()
-            print("-------------------- STEP 6: Cross matching and fitting --------------------")
-            # Specify matching algorithm to use
-            print("TOL: ",tol)
-            match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
-                                     tolerance=tol, use2dhist=False)
-            # Align images and correct WCS
-            tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
-            # Interpret RMS values from tweakwcs
-            interpret_fit_rms(imglist, reference_catalog)
-
-            tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
-            imgctr=0
-            for item in imglist:
-                retry_fit = False
-                #Handle fitting failures (no matches found)
-                if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
-                    if catalogIndex <= numCatalogs - 1:
-                        print("No cross matches found between astrometric catalog and sources found in images")
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        tol = TOL_START
-                        iter_ctr  = 0
-                        break
-                    else:
-                        print("No cross matches found in any catalog - no processing done.")
-                        return (1)
-                max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
-                num_xmatches = item.meta['tweakwcs_info']['nmatches']
-                radial_shift = math.sqrt(item.meta['tweakwcs_info']['shift'][0]**2+item.meta['tweakwcs_info']['shift'][1]**2)
-                # print fit params to screen
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(
-                    iter_ctr, MAX_ITERATIONS, tol, catalogIndex, catalogList[catalogIndex]))
-                if item.meta['chip'] == 1:
-                    image_name = processList[imgctr]
-                    imgctr += 1
-                print("image: {}".format(image_name))
-                print("chip: {}".format(item.meta['chip']))
-                print("group_id: {}".format(item.meta['group_id']))
-                for tweakwcs_info_key in tweakwcs_info_keys:
-                    if not tweakwcs_info_key.startswith("matched"):
-                        print("{} : {}".format(tweakwcs_info_key,item.meta['tweakwcs_info'][tweakwcs_info_key]))
-                print("Radial shift: {}".format(radial_shift))
-                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                fout.write("{} {} {} {}\n".format(iter_ctr,tol,item.meta['tweakwcs_info']['FIT_RMS'],item.meta['tweakwcs_info']['TOTAL_RMS']))
-                if num_xmatches < MIN_CROSS_MATCHES:
-                    if catalogIndex <= numCatalogs-1:
-                        print("Not enough cross matches found between astrometric catalog and sources found in images")
-                        print("Try again with the next catalog")
-                        catalogIndex += 1
-                        retry_fit = True
-                        tol = TOL_START
-                        break
-                    else:
-                        print("Not enough cross matches found in any catalog - no processing done.")
-                        return(1)
-                elif max_rms_val > MAX_FIT_RMS:
-                    if catalogIndex <= numCatalogs-1:
-                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(item.meta['tweakwcs_info']['FIT_RMS'].value, MAX_FIT_RMS))
-                        if iter_ctr <= MAX_ITERATIONS:
-                            #new_tolerance = math.ceil(radial_shift)
-                            new_tolerance =  radial_shift*TOL_SCALE_FACTOR
-                            if new_tolerance < 1.0:
-                                print("New tolerance value {} below 1.0; Reset New tolerance value to 1.0".format(new_tolerance))
-                                new_tolerance = 1.0
-                                
-                            if new_tolerance != 1. and new_tolerance == tol:
-                                print("Possible local minimum detected. Attempting to compensate by manually adjusting tolerance value..")
-                                new_tolerance = (radial_shift-1.0)*TOL_SCALE_FACTOR # try to push the fit away from a local minimum.
-                            print("Try again with tolerance reduced from {} to {}.".format(tol,new_tolerance))
-                            tol = new_tolerance
-                            iter_ctr+=1
-                            retry_fit = True
-                            break
-                        else:
-                            print("Maximum number of iterations ({}) reached using the {} catalog. Try again with the next catalog".format(MAX_ITERATIONS,catalogList[catalogIndex]))
-                            iter_ctr = 0
-                            tol = TOL_START
-                            catalogIndex += 1
-                            retry_fit = True
-                            break
-                    else:
-                        print("Fit RMS values too large using any catalog - no processing done.")
-                        return(1)
-                else:
-                    print("Fit calculations successful.")
-        if not retry_fit:
-            print("\nSUCCESS")
-            #Print final summary of results as a giant wall of numbers...for now
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SUMMARY OF FINAL WCS SOLUTION <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-            imgctr = 0
-            print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  Astrometric Catalog:{}".format(iter_ctr, MAX_ITERATIONS, tol, catalogList[catalogIndex]))
-            for item in imglist:
-                if item.meta['chip'] == 1:
-                    image_name = processList[imgctr]
-                    imgctr += 1
-                print("{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, FIT RMS: {}, TOTAL RMS: {}, # MATCHES: {}"
-                      .format(image_name, item.meta['chip'],
-                      item.meta['tweakwcs_info']['shift'][0],
-                      item.meta['tweakwcs_info']['shift'][1],
-                      item.meta['tweakwcs_info']['rot'],
-                      item.meta['tweakwcs_info']['scale'],
-                      item.meta['tweakwcs_info']['FIT_RMS'],
-                      item.meta['tweakwcs_info']['TOTAL_RMS'],
-                      item.meta['tweakwcs_info']['nmatches']))
-            # 7: Write new fit solution to input image headers
-            print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
-            if update_hdr_wcs:
-                update_image_wcs_info(imglist, processList)
-                print("\nSUCCESS")
-            else:
-                print("\n STEP SKIPPED")
-            return (0)
-
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-
 def generate_astrometric_catalog(imglist, **pars):
     """Generates a catalog of all sources from an existing astrometric catalog are in or near the FOVs of the images in
         the input list.
@@ -466,44 +221,6 @@ def generate_source_catalogs(imglist, **pars):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-def update_image_wcs_info(tweakwcs_output, imagelist):
-    """Write newly computed WCS information to image headers
-
-    Parameters
-    ----------
-    tweakwcs_output : list
-        output of tweakwcs. Contains sourcelist tables, newly computed WCS info, etc. for every chip of every valid
-        input image.
-
-    imagelist : list
-        list of valid processed images to be updated
-
-    Returns
-    -------
-    Nothing!
-    """
-    imgctr = 0
-    for item in tweakwcs_output:
-        if item.meta['chip'] == 1:  # to get the image name straight regardless of the number of chips
-            image_name = imagelist[imgctr]
-            if imgctr > 0: #close previously opened image
-                print("CLOSE {}".format(hdulist[0].header['FILENAME'])) #TODO: Remove before deployment
-                hdulist.flush()
-                hdulist.close()
-            hdulist = fits.open(image_name, mode='update')
-            sciExtDict = {}
-            for sciExtCtr in range(1, amutils.countExtn(hdulist) + 1): #establish correct mapping to the science extensions
-                sciExtDict["{}".format(sciExtCtr)] = fileutil.findExtname(hdulist,'sci',extver=sciExtCtr)
-            imgctr += 1
-        updatehdr.update_wcs(hdulist, sciExtDict["{}".format(item.meta['chip'])], item.wcs, wcsname='TWEAKDEV', reusename=True, verbose=True) #TODO: May want to settle on a better name for 'wcsname'
-        print()
-    print("CLOSE {}".format(hdulist[0].header['FILENAME'])) #TODO: Remove before deployment
-    hdulist.flush() #close last image
-    hdulist.close()
-
-
-# ======================================================================================================================
-
 def interpret_fit_rms(tweakwcs_output, reference_catalog):
     """Interpret the FIT information to convert RMS to physical units
 
@@ -559,7 +276,266 @@ def interpret_fit_rms(tweakwcs_output, reference_catalog):
         item.meta['tweakwcs_info']['TOTAL_RMS'] = total_rms
         item.meta['tweakwcs_info']['NUM_FITS'] = len(group_ids)
 
-# ======================================================================================================================
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+def perform_align(input_list, archive=False, clobber=False, debug=False, update_hdr_wcs=False):
+    """Main calling function.
+
+    Parameters
+    ----------
+    input_list : list
+        List of one or more IPPSSOOTs (rootnames) to align.
+
+    archive : Boolean
+        Retain copies of the downloaded files in the astroquery created sub-directories?
+
+    clobber : Boolean
+        Download and overwrite existing local copies of input files?
+
+    debug : Boolean
+        Save sourcelists in pickle files for reuse so that step 5 can be skipped for faster subsequent debug/development
+        runs?
+
+    update_hdr_wcs : Boolean
+        Write newly computed WCS information to image image headers?
+
+    Returns
+    -------
+    int value 0 if successful, int value 1 if unsuccessful
+
+    """
+
+    # Define astrometric catalog list in priority order
+    catalogList = ['GAIADR2', 'GSC241']
+    numCatalogs = len(catalogList)
+
+    # 1: Interpret input data and optional parameters
+    print("-------------------- STEP 1: Get data --------------------")
+    imglist = check_and_get_data(input_list, archive=archive, clobber=clobber)
+    print("\nSUCCESS")
+
+    # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
+    print("-------------------- STEP 2: Filter data --------------------")
+    filteredTable = filter.analyze_data(imglist)
+
+    # Check the table to determine if there is any viable data to be aligned.  The
+    # 'doProcess' column (bool) indicates the image/file should or should not be used
+    # for alignment purposes.
+    if filteredTable['doProcess'].sum() == 0:
+        print("No viable images in filtered table - no processing done.\n")
+        return (1)
+
+    # Get the list of all "good" files to use for the alignment
+    processList = filteredTable['imageName'][np.where(filteredTable['doProcess'])]
+    processList = list(processList)  # Convert processList from numpy list to regular python list
+    print("\nSUCCESS")
+
+    # 3: Build WCS for full set of input observations
+    print("-------------------- STEP 3: Build WCS --------------------")
+    refwcs = amutils.build_reference_wcs(processList)
+    print("\nSUCCESS")
+
+    # 4: Retrieve list of astrometric sources from database
+    # While loop to accommodate using multiple catalogs
+    doneFitting = False
+    catalogIndex = 0
+    extracted_sources = None
+    iter_ctr = 0
+    tol = TOL_START
+    fout = open("iteration_value.dat",
+                'w')  # text file that iteration #, tolerance values, and RMS values will be written to
+    fout.write("Iteration Tolerance fit_rms total_rms\n")
+    while not doneFitting:
+        # if tol != TOL_START and retry_fit == True: foo = input("hit return/enter to continue")
+        # print("\n\n>>> ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(iter_ctr,MAX_ITERATIONS,tol,catalogIndex,catalogList[catalogIndex]))
+        skip_all_other_steps = False
+        retry_fit = False
+        print("-------------------- STEP 4: Detect astrometric sources --------------------")
+        if catalogIndex <= numCatalogs - 1:
+            print("Astrometric Catalog: ", catalogList[catalogIndex])
+            reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
+            # The table must have at least MIN_CATALOG_THRESHOLD entries to be useful
+            if len(reference_catalog) >= MIN_CATALOG_THRESHOLD:
+                print("\nSUCCESS")
+
+            else:
+                print("Not enough sources found in catalog " + catalogList[catalogIndex])
+                print("Try again with the next catalog")
+                catalogIndex += 1
+                retry_fit = True
+                skip_all_other_steps = True
+        else:
+            print("Not enough sources found in any catalog - no processing done.")
+            return (1)
+
+        if not skip_all_other_steps:
+            # 5: Extract catalog of observable sources from each input image
+            print("-------------------- STEP 5: Source finding --------------------")
+            if not extracted_sources:
+                if debug:
+                    pickle_filename = "{}.source_catalog.pickle".format(processList[0])
+                    if os.path.exists(pickle_filename):
+                        pickle_in = open(pickle_filename, "rb")
+                        extracted_sources = pickle.load(pickle_in)
+                        print("Using sourcelist extracted from {} generated during the last run to save time.".format(
+                            pickle_filename))
+                    else:
+                        extracted_sources = generate_source_catalogs(processList)
+                        pickle_out = open(pickle_filename, "wb")
+                        pickle.dump(extracted_sources, pickle_out)
+                        pickle_out.close()
+                        print("Wrote ", pickle_filename)
+                else:
+                    extracted_sources = generate_source_catalogs(processList)
+                for imgname in extracted_sources.keys():
+                    table = extracted_sources[imgname]["catalog_table"]
+                    # The catalog of observable sources must have at least MIN_OBSERVABLE_THRESHOLD entries to be useful
+                    total_num_sources = 0
+                    for chipnum in table.keys():
+                        total_num_sources += len(table[chipnum])
+                    if total_num_sources < MIN_OBSERVABLE_THRESHOLD:
+                        print("Not enough sources ({}) found in image {}".format(total_num_sources, imgname))
+                        return (1)
+            # Convert input images to tweakwcs-compatible NDData objects and
+            # attach source catalogs to them.
+            imglist = []
+            for group_id, image in enumerate(processList):
+                imglist.extend(amutils.build_nddata(image, group_id,
+                                                    extracted_sources[image]['catalog_table']))
+            print("\nSUCCESS")
+
+            # 6: Cross-match source catalog with astrometric reference source catalog, Perform fit between source catalog and reference catalog, iterate to find best tolerance value for tweakwcs.TPMatch()
+            print("-------------------- STEP 6: Cross matching and fitting --------------------")
+            # Specify matching algorithm to use
+            print("TOL: ", tol)
+            match = tweakwcs.TPMatch(searchrad=250, separation=0.1,
+                                     tolerance=tol, use2dhist=False)
+            # Align images and correct WCS
+            tweakwcs.tweak_image_wcs(imglist, reference_catalog, match=match)
+            # Interpret RMS values from tweakwcs
+            interpret_fit_rms(imglist, reference_catalog)
+
+            tweakwcs_info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
+            imgctr = 0
+            for item in imglist:
+                retry_fit = False
+                # Handle fitting failures (no matches found)
+                if item.meta['tweakwcs_info']['status'].startswith("FAILED") == True:
+                    if catalogIndex <= numCatalogs - 1:
+                        print("No cross matches found between astrometric catalog and sources found in images")
+                        print("Try again with the next catalog")
+                        catalogIndex += 1
+                        retry_fit = True
+                        tol = TOL_START
+                        iter_ctr = 0
+                        break
+                    else:
+                        print("No cross matches found in any catalog - no processing done.")
+                        return (1)
+                max_rms_val = item.meta['tweakwcs_info']['TOTAL_RMS']
+                num_xmatches = item.meta['tweakwcs_info']['nmatches']
+                radial_shift = math.sqrt(
+                    item.meta['tweakwcs_info']['shift'][0] ** 2 + item.meta['tweakwcs_info']['shift'][1] ** 2)
+                # print fit params to screen
+                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ FIT PARAMETERS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  CATALOG INDEX: {}  Astrometric Catalog:{}".format(
+                    iter_ctr, MAX_ITERATIONS, tol, catalogIndex, catalogList[catalogIndex]))
+                if item.meta['chip'] == 1:
+                    image_name = processList[imgctr]
+                    imgctr += 1
+                print("image: {}".format(image_name))
+                print("chip: {}".format(item.meta['chip']))
+                print("group_id: {}".format(item.meta['group_id']))
+                for tweakwcs_info_key in tweakwcs_info_keys:
+                    if not tweakwcs_info_key.startswith("matched"):
+                        print("{} : {}".format(tweakwcs_info_key, item.meta['tweakwcs_info'][tweakwcs_info_key]))
+                print("Radial shift: {}".format(radial_shift))
+                print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                fout.write("{} {} {} {}\n".format(iter_ctr, tol, item.meta['tweakwcs_info']['FIT_RMS'],
+                                                  item.meta['tweakwcs_info']['TOTAL_RMS']))
+                if num_xmatches < MIN_CROSS_MATCHES:
+                    if catalogIndex <= numCatalogs - 1:
+                        print("Not enough cross matches found between astrometric catalog and sources found in images")
+                        print("Try again with the next catalog")
+                        catalogIndex += 1
+                        retry_fit = True
+                        tol = TOL_START
+                        break
+                    else:
+                        print("Not enough cross matches found in any catalog - no processing done.")
+                        return (1)
+                elif max_rms_val > MAX_FIT_RMS:
+                    if catalogIndex <= numCatalogs - 1:
+                        print("Fit RMS value = {}mas greater than the maximum threshold value {}.".format(
+                            item.meta['tweakwcs_info']['FIT_RMS'].value, MAX_FIT_RMS))
+                        if iter_ctr <= MAX_ITERATIONS:
+                            # new_tolerance = math.ceil(radial_shift)
+                            new_tolerance = radial_shift * TOL_SCALE_FACTOR
+                            if new_tolerance < 1.0:
+                                print("New tolerance value {} below 1.0; Reset New tolerance value to 1.0".format(
+                                    new_tolerance))
+                                new_tolerance = 1.0
+
+                            if new_tolerance != 1. and new_tolerance == tol:
+                                print(
+                                    "Possible local minimum detected. Attempting to compensate by manually adjusting tolerance value..")
+                                new_tolerance = (
+                                                            radial_shift - 1.0) * TOL_SCALE_FACTOR  # try to push the fit away from a local minimum.
+                            print("Try again with tolerance reduced from {} to {}.".format(tol, new_tolerance))
+                            tol = new_tolerance
+                            iter_ctr += 1
+                            retry_fit = True
+                            break
+                        else:
+                            print(
+                                "Maximum number of iterations ({}) reached using the {} catalog. Try again with the next catalog".format(
+                                    MAX_ITERATIONS, catalogList[catalogIndex]))
+                            iter_ctr = 0
+                            tol = TOL_START
+                            catalogIndex += 1
+                            retry_fit = True
+                            break
+                    else:
+                        print("Fit RMS values too large using any catalog - no processing done.")
+                        return (1)
+                else:
+                    print("Fit calculations successful.")
+        if not retry_fit:
+            print("\nSUCCESS")
+            # Print final summary of results as a giant wall of numbers...for now
+            print(
+                ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> SUMMARY OF FINAL WCS SOLUTION <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            imgctr = 0
+            print("\n\n#### ITERATION {} of {}  TOLERANCE: {}  Astrometric Catalog:{}".format(iter_ctr, MAX_ITERATIONS,
+                                                                                              tol, catalogList[
+                                                                                                  catalogIndex]))
+            for item in imglist:
+                if item.meta['chip'] == 1:
+                    image_name = processList[imgctr]
+                    imgctr += 1
+                print(
+                    "{}[SCI,{}]: X SHIFT: {} Y SHIFT: {}, ROT: {}, SCALE: {}, FIT RMS: {}, TOTAL RMS: {}, # MATCHES: {}"
+                    .format(image_name, item.meta['chip'],
+                            item.meta['tweakwcs_info']['shift'][0],
+                            item.meta['tweakwcs_info']['shift'][1],
+                            item.meta['tweakwcs_info']['rot'],
+                            item.meta['tweakwcs_info']['scale'],
+                            item.meta['tweakwcs_info']['FIT_RMS'],
+                            item.meta['tweakwcs_info']['TOTAL_RMS'],
+                            item.meta['tweakwcs_info']['nmatches']))
+            # 7: Write new fit solution to input image headers
+            print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
+            if update_hdr_wcs:
+                update_image_wcs_info(imglist, processList)
+                print("\nSUCCESS")
+            else:
+                print("\n STEP SKIPPED")
+            return (0)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+
 def perform_iterative_alignment():
     """Iteratively determine best-fit solution.
 
@@ -574,6 +550,46 @@ def perform_iterative_alignment():
     print("CODE GOES HERE!")
 
     return(None)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def update_image_wcs_info(tweakwcs_output, imagelist):
+    """Write newly computed WCS information to image headers
+
+    Parameters
+    ----------
+    tweakwcs_output : list
+        output of tweakwcs. Contains sourcelist tables, newly computed WCS info, etc. for every chip of every valid
+        input image.
+
+    imagelist : list
+        list of valid processed images to be updated
+
+    Returns
+    -------
+    Nothing!
+    """
+    imgctr = 0
+    for item in tweakwcs_output:
+        if item.meta['chip'] == 1:  # to get the image name straight regardless of the number of chips
+            image_name = imagelist[imgctr]
+            if imgctr > 0: #close previously opened image
+                print("CLOSE {}".format(hdulist[0].header['FILENAME'])) #TODO: Remove before deployment
+                hdulist.flush()
+                hdulist.close()
+            hdulist = fits.open(image_name, mode='update')
+            sciExtDict = {}
+            for sciExtCtr in range(1, amutils.countExtn(hdulist) + 1): #establish correct mapping to the science extensions
+                sciExtDict["{}".format(sciExtCtr)] = fileutil.findExtname(hdulist,'sci',extver=sciExtCtr)
+            imgctr += 1
+        updatehdr.update_wcs(hdulist, sciExtDict["{}".format(item.meta['chip'])], item.wcs, wcsname='TWEAKDEV', reusename=True, verbose=True) #TODO: May want to settle on a better name for 'wcsname'
+        print()
+    print("CLOSE {}".format(hdulist[0].header['FILENAME'])) #TODO: Remove before deployment
+    hdulist.flush() #close last image
+    hdulist.close()
+
 
 # ======================================================================================================================
 
