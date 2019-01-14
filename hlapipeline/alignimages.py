@@ -559,7 +559,21 @@ def interpret_fit_rms(tweakwcs_output, reference_catalog):
         item.meta['tweakwcs_info']['TOTAL_RMS'] = total_rms
         item.meta['tweakwcs_info']['NUM_FITS'] = len(group_ids)
 
+# ======================================================================================================================
+def perform_iterative_alignment():
+    """Iteratively determine best-fit solution.
 
+    Parameters
+    ----------
+
+    Returns
+    -------
+    If successful, the best-fit solution is returned. If unsuccessful, boolian 'None'.
+    """
+
+    print("CODE GOES HERE!")
+
+    return(None)
 
 # ======================================================================================================================
 
