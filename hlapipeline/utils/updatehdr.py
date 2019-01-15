@@ -313,7 +313,7 @@ def update_refchip_with_shift(chip_wcs, wcslin, fitgeom='rscale',
     # compute new CRVAL for the image WCS:
     crpixinref = wcslin.wcs_world2pix(
         chip_wcs.wcs_pix2world([chip_wcs.wcs.crpix],1),1)
-    crpixinref = np.dot(fit, (crpixinref - shift).T).T
+    crpixinref = np.dot(crpixinref - shift, fit.T).astype(np.float64)
     chip_wcs.wcs.crval = wcslin.wcs_pix2world(crpixinref, 1)[0]
     chip_wcs.wcs.set()
 
