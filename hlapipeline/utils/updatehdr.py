@@ -18,6 +18,8 @@ from astropy import wcs as pywcs
 from stwcs import wcsutil, updatewcs
 from stwcs.wcsutil import wcscorr
 
+from tweakwcs import linalg
+
 __version__ = '0.3.0'
 __version_date__ = '26-Oct-2018'
 
@@ -25,13 +27,6 @@ __version_date__ = '26-Oct-2018'
 wcs_keys = ['CRVAL1','CRVAL2','CD1_1','CD1_2','CD2_1','CD2_2',
             'CRPIX1','CRPIX2','ORIENTAT']
 blank_list = [None, '', ' ',"None","INDEF"]
-
-if hasattr(np, 'float128'):
-    ndfloat128 = np.float128
-elif hasattr(np, 'float96'):
-    ndfloat128 = np.float96
-else:
-    ndfloat128 = np.float64
 
 
 def updatewcs_with_shift(image,reference,wcsname=None, reusename=False,
@@ -233,12 +228,12 @@ def linearize(wcsim, wcsima, wcsref, imcrpix, f, shift, hx=1.0, hy=1.0):
                     [x0, y0 + hy]],
                    dtype=np.float64)
     # convert image coordinates to reference image coordinates:
-    p = wcsref.wcs_world2pix(wcsim.wcs_pix2world(p, 1), 1).astype(ndfloat128)
+    p = wcsref.wcs_world2pix(wcsim.wcs_pix2world(p, 1), 1).astype(np.longdouble)
     # apply linear fit transformation:
     p = np.dot(f, (p - shift).T).T
     # convert back to image coordinate system:
     p = wcsima.wcs_world2pix(
-        wcsref.wcs_pix2world(p.astype(np.float64), 1), 1).astype(ndfloat128)
+        wcsref.wcs_pix2world(p.astype(np.float64), 1), 1).astype(np.longdouble)
 
     # derivative with regard to x:
     u1 = ((p[1] - p[4]) + 8 * (p[3] - p[2])) / (6*hx)
@@ -246,25 +241,6 @@ def linearize(wcsim, wcsima, wcsref, imcrpix, f, shift, hx=1.0, hy=1.0):
     u2 = ((p[5] - p[8]) + 8 * (p[7] - p[6])) / (6*hy)
 
     return (np.asarray([u1, u2]).T, p[0])
-
-
-def _inv2x2(x):
-    assert(x.shape == (2,2))
-    inv = x.astype(ndfloat128)
-    det = inv[0,0]*inv[1,1] - inv[0,1]*inv[1,0]
-    if np.abs(det) < np.finfo(np.float64).tiny:
-        raise ArithmeticError('Singular matrix.')
-    a = inv[0, 0]
-    d = inv[1, 1]
-    inv[1, 0] *= -1.0
-    inv[0, 1] *= -1.0
-    inv[0, 0] = d
-    inv[1, 1] = a
-    inv /= det
-    inv = inv.astype(np.float64)
-    if not np.all(np.isfinite(inv)):
-        raise ArithmeticError('Singular matrix.')
-    return inv
 
 
 def update_refchip_with_shift(chip_wcs, wcslin, fitgeom='rscale',
@@ -310,11 +286,11 @@ def update_refchip_with_shift(chip_wcs, wcslin, fitgeom='rscale',
 
     shift = np.asarray([xsh, ysh]) - np.dot(wcslin.wcs.crpix, fit) + wcslin.wcs.crpix
 
-    fit = _inv2x2(fit).T if fit.shape == (2,2) else np.linalg.inv(fit).T
+    fit = linalg.inv(fit).T
 
     cwcs = chip_wcs.deepcopy()
-    cd_eye = np.eye(chip_wcs.wcs.cd.shape[0], dtype=ndfloat128)
-    zero_shift = np.zeros(2, dtype=ndfloat128)
+    cd_eye = np.eye(chip_wcs.wcs.cd.shape[0], dtype=np.longdouble)
+    zero_shift = np.zeros(2, dtype=np.longdouble)
 
     # estimate precision necessary for iterative processes:
     maxiter = 100
@@ -328,10 +304,11 @@ def update_refchip_with_shift(chip_wcs, wcslin, fitgeom='rscale',
     # better precision for numerical differentiation.
     # TODO: The logic below should be revised at a later time so that it
     # better takes into account the two competing requirements.
-    hx = max(1.0, min(20.0, (chip_wcs.wcs.crpix[0] - 1.0)/100.0,
-                      (chip_wcs._naxis1 - chip_wcs.wcs.crpix[0])/100.0))
-    hy = max(1.0, min(20.0, (chip_wcs.wcs.crpix[1] - 1.0)/100.0,
-                      (chip_wcs._naxis2 - chip_wcs.wcs.crpix[1])/100.0))
+    crpix1, crpix2 = chip_wcs.wcs.crpix
+    hx = max(1.0, min(20.0, (crpix1 - 1.0) / 100.0,
+                      (chip_wcs._naxis1 - crpix1) / 100.0))
+    hy = max(1.0, min(20.0, (crpix2 - 1.0) / 100.0,
+                      (chip_wcs._naxis2 - crpix2) / 100.0))
 
     # compute new CRVAL for the image WCS:
     crpixinref = wcslin.wcs_world2pix(
@@ -344,7 +321,7 @@ def update_refchip_with_shift(chip_wcs, wcslin, fitgeom='rscale',
     (U, u) = linearize(cwcs, chip_wcs, wcslin, chip_wcs.wcs.crpix,
                        fit, shift, hx=hx, hy=hy)
     err0 = np.amax(np.abs(U-cd_eye)).astype(np.float64)
-    chip_wcs.wcs.cd = np.dot(chip_wcs.wcs.cd.astype(ndfloat128), U).astype(np.float64)
+    chip_wcs.wcs.cd = np.dot(chip_wcs.wcs.cd.astype(np.longdouble), U).astype(np.float64)
     chip_wcs.wcs.set()
 
     # NOTE: initial solution is the exact mathematical solution (modulo numeric
@@ -513,8 +490,8 @@ def create_unique_wcsname(fimg, extnum, wcsname):
         index += 1 # for use with new name
         uniqname = "%s_%d"%(wcsname,index)
     return uniqname
-    
-    
+
+
 ##########################################
 #
 #  Functions from drizzlepac.util
@@ -656,7 +633,7 @@ def get_ext_list(img, extname='SCI'):
         hdulist = fits.open(img)
     else:
         hdulist = img # assume it is already a FITS HDUList object
-        
+
     # when extver is None - return the range of all 'image'-like FITS extensions
     if extname is None:
         extn = []
@@ -672,7 +649,7 @@ def get_ext_list(img, extname='SCI'):
         if doRelease:
             img.release()
         return extn
-    
+
     extname = extname.upper()
 
     extver = []
