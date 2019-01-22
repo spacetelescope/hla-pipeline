@@ -4,6 +4,7 @@
 
 """
 
+import datetime
 from astropy.io import fits
 from astropy.table import Table
 from astropy.coordinates import SkyCoord, Angle
@@ -174,19 +175,23 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
     # 1: Interpret input data and optional parameters
     print("-------------------- STEP 1: Get data --------------------")
+    currentDT = datetime.datetime.now()
+    print(str(currentDT))
     imglist = check_and_get_data(input_list, archive=archive, clobber=clobber)
     print("\nSUCCESS")
 
     # 2: Apply filter to input observations to insure that they meet minimum criteria for being able to be aligned
     print("-------------------- STEP 2: Filter data --------------------")
+    currentDT = datetime.datetime.now()
+    print(str(currentDT))
     filteredTable = filter.analyze_data(imglist)
 
     # Check the table to determine if there is any viable data to be aligned.  The
     # 'doProcess' column (bool) indicates the image/file should or should not be used
-    # for alignment purposes.
+    # for alignment purposes.  For filtered data, 'doProcess=0' and 'status=9999' in the table.
     if filteredTable['doProcess'].sum() == 0:
         print("No viable images in filtered table - no processing done.\n")
-        return(1)
+        return(filteredTable)
 
     # Get the list of all "good" files to use for the alignment
     processList = filteredTable['imageName'][np.where(filteredTable['doProcess'])]
@@ -195,12 +200,16 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
     # 3: Build WCS for full set of input observations
     print("-------------------- STEP 3: Build WCS --------------------")
+    currentDT = datetime.datetime.now()
+    print(str(currentDT))
     refwcs = amutils.build_reference_wcs(processList)
     print("\nSUCCESS")
 
 
     # 4: Extract catalog of observable sources from each input image
     print("-------------------- STEP 4: Source finding --------------------")
+    currentDT = datetime.datetime.now()
+    print(str(currentDT))
     extracted_sources = generate_source_catalogs(processList,
                                                  centering_mode='starfind',
                                                  nlargest=MAX_SOURCES_PER_CHIP)
@@ -211,9 +220,15 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         total_num_sources = 0
         for chipnum in table.keys():
             total_num_sources += len(table[chipnum])
+
+        # Update filtered table with number of found sources
+        index = np.where(filteredTable['imageName']==imgname)[0][0]
+        filteredTable[index]['foundSources'] = total_num_sources
+
         if total_num_sources < MIN_OBSERVABLE_THRESHOLD:
             print("Not enough sources ({}) found in image {}".format(total_num_sources,imgname))
-            return(1)
+            filteredTable[index]['status'] = 1
+            return(filteredTable)
     # Convert input images to tweakwcs-compatible NDData objects and
     # attach source catalogs to them.
     imglist = []
@@ -231,9 +246,12 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     catalogIndex = 0
     best_fit = MAX_FIT_LIMIT
     print("-------------------- STEP 5: Detect Gaia astrometric sources --------------------")
+    currentDT = datetime.datetime.now()
+    print(str(currentDT))
     print("Astrometric Catalog: ",catalogList[catalogIndex])
     reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
 
+    best_fit_rms = MAX_FIT_RMS + 1.0
     if len(reference_catalog) < MIN_CATALOG_THRESHOLD:
         print("Not enough sources found in Gaia catalog " + catalogList[catalogIndex])
         print("Try again with other catalog")
@@ -241,9 +259,37 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
         retry_fit = True
         skip_all_other_steps = True
     else:
+
         print("-------------------- STEP 5b: Cross matching and fitting --------------------")
+        currentDT = datetime.datetime.now()
+        print('BEGIN Cross Match and Fitting 2DHist: ', str(currentDT))
         best_fit_rms, best_fit_num = match_2dhist_fit(imglist, reference_catalog,
                                      print_fit_parameters=print_fit_parameters)
+
+        info_keys = OrderedDict(imglist[0].meta['tweakwcs_info']).keys()
+        # Update filtered table with number of matched sources and other information
+        for item in imglist:
+            imgname = item.meta['name']
+            index = np.where(filteredTable['imageName']==imgname)[0][0]
+
+            #Handle fitting failures (no matches found)
+            if item.meta['tweakwcs_info']['status'].startswith("FAILED") != True:
+                print(item.meta['tweakwcs_info']['status'])
+
+                for tweakwcs_info_key in info_keys:
+                    if not tweakwcs_info_key.startswith("matched"):
+                        #print('key: ',tweakwcs_info_key)
+                        if 'rms' in tweakwcs_info_key:
+                            filteredTable[index]['rms_x'] = item.meta['tweakwcs_info'][tweakwcs_info_key][0]
+                            filteredTable[index]['rms_y'] = item.meta['tweakwcs_info'][tweakwcs_info_key][1]
+
+                filteredTable[index]['catalog'] = item.meta['tweakwcs_info']['catalog']
+                filteredTable[index]['matchSources'] = item.meta['tweakwcs_info']['nmatches']
+                #filteredTable[index]['rms_ra'] = item.meta['tweakwcs_info']['RMS_RA']
+                #filteredTable[index]['rms_dec'] = item.meta['tweakwcs_info']['RMS_DEC']
+                filteredTable[index]['fit_rms'] = item.meta['tweakwcs_info']['FIT_RMS']
+                filteredTable[index]['total_rms'] = item.meta['tweakwcs_info']['TOTAL_RMS']
+                #filteredTable.pprint(max_width=-1)
 
         # 6b: If available, the logic tree for fitting with different algorithms
         # would be here.   These would only be invoked if the above step failed.
@@ -257,6 +303,8 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
     if best_fit_rms > MAX_FIT_RMS:
         for catalogIndex in range(1, len(catalogList)):
             print("-------------------- STEP 6: Detect catalog astrometric sources --------------------")
+            currentDT = datetime.datetime.now()
+            print(str(currentDT))
             print("Astrometric Catalog: ",catalogList[catalogIndex])
             reference_catalog = generate_astrometric_catalog(processList, catalog=catalogList[catalogIndex])
 
@@ -268,6 +316,8 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
                 skip_all_other_steps = True
             else:
                 print("-------------------- STEP 6b: Cross matching and fitting --------------------")
+                currentDT = datetime.datetime.now()
+                print('BEGIN Cross Match and Fitting Default: ', str(currentDT))
 
                 fit_rms, fit_num = match_default_fit(imglist, reference_catalog,
                                      print_fit_parameters=print_fit_parameters)
@@ -293,12 +343,17 @@ def perform_align(input_list, archive=False, clobber=False, update_hdr_wcs=False
 
     # 7: Write new fit solution to input image headers
     print("-------------------- STEP 7: Update image headers with new WCS information --------------------")
+    currentDT = datetime.datetime.now()
+    print('END Cross Match and Fitting: ', str(currentDT))
+    #if update_hdr_wcs:
+    update_hdr_wcs=True
     if update_hdr_wcs:
         update_image_wcs_info(imglist, processList)
         print("\nSUCCESS")
     else:
         print("\n STEP SKIPPED")
-    return (0)
+    filteredTable['status'][:] = 0
+    return (filteredTable)
 
 def match_default_fit(imglist, reference_catalog, print_fit_parameters=True):
     """Perform cross-matching and final fit using 2dHistogram matching
@@ -556,6 +611,7 @@ def update_image_wcs_info(tweakwcs_output,imagelist):
     """
     imgctr = 0
     for item in tweakwcs_output:
+        #print('YYYYYYYYY',item.wcs.pscale)
         if item.meta['chip'] == 1:  # to get the image name straight regardless of the number of chips
             image_name = imagelist[imgctr]
             if imgctr > 0: #close previously opened image
