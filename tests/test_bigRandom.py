@@ -1,6 +1,7 @@
 import sys
 import traceback
 import os
+import glob
 import pytest
 import numpy as np
 from astropy.table import Table, vstack
@@ -46,12 +47,12 @@ class TestRandomAlignMosaic(BaseHLATest):
             using the new algorithms developed for producing the HLA products.
         """
         #inputListFiles = ['ACSList50R_v2.csv', 'WFC3List50R_v2.csv']
-        inputListFiles = ['ran2_ACSimages_v2_4.csv', 'ran2_WFC3images_v2_4.csv']
-        #inputListFiles = ['ACSList2.csv']
+        #inputListFiles = ['ran2_ACSimages_v2_4.csv', 'ran2_WFC3images_v2_4.csv']
+        inputListFiles = ['ACSList2.csv']
 
         # Desired number of random entries for testing from each input CSV
-        inputNumEntries = 75
-        #inputNumEntries = 1
+        #inputNumEntries = 75
+        inputNumEntries = 3
 
         # Seed for random number generator
         inputSeedValue = 1
@@ -115,59 +116,59 @@ class TestRandomAlignMosaic(BaseHLATest):
         datasetKey = -1
         for dataset in dataset_list:
 
-           datasetKey += 1
-           outputName = dataset + '.ecsv'
+            datasetKey += 1
+            outputName = dataset + '.ecsv'
 
-           print("TEST_RANDOM. Dataset: ", dataset, ' DatasetKey: ', datasetKey)
-           try:
-               datasetTable = alignimages.perform_align([dataset])
+            print("TEST_RANDOM. Dataset: ", dataset, ' DatasetKey: ', datasetKey)
+            try:
+                datasetTable = alignimages.perform_align([dataset])
 
-               # Filtered datasets
-               if datasetTable['doProcess'].sum() == 0:
-                   print("TEST_RANDOM. Filtered Dataset: ", dataset, "\n")
-                   numAllDatasets -= 1;
-               # Datasets to process
-               elif datasetTable['doProcess'].sum() > 0:
-                   # Determine images in dataset to be processed and the number of images
-                   # This is in case an image was filtered out (e.g., expotime = 0)
-                   index = np.where(datasetTable['doProcess']==1)[0]
-                   sumOfStatus = datasetTable['status'][index].sum()
+                # Filtered datasets
+                if datasetTable['doProcess'].sum() == 0:
+                    print("TEST_RANDOM. Filtered Dataset: ", dataset, "\n")
+                    numAllDatasets -= 1;
+                # Datasets to process
+                elif datasetTable['doProcess'].sum() > 0:
+                    # Determine images in dataset to be processed and the number of images
+                    # This is in case an image was filtered out (e.g., expotime = 0)
+                    index = np.where(datasetTable['doProcess']==1)[0]
+                    sumOfStatus = datasetTable['status'][index].sum()
    
-                   # Successful datasets
-                   if (sumOfStatus == 0):
-                       print("TEST_RANDOM. Successful Dataset: ", dataset, "\n")
-                       numSuccess += 1
-                   # Unsuccessful datasets
-                   else:
-                       print("TEST_RANDOM. Unsuccessful Dataset: ", dataset, "\n")
+                    # Successful datasets
+                    if (sumOfStatus == 0):
+                        print("TEST_RANDOM. Successful Dataset: ", dataset, "\n")
+                        numSuccess += 1
+                    # Unsuccessful datasets
+                    else:
+                        print("TEST_RANDOM. Unsuccessful Dataset: ", dataset, "\n")
 
-               # Update the table with the datasetKey which is really just a counter
-               datasetTable['datasetKey'][:] = datasetKey
-               datasetTable['completed'][:] = True
-               allDatasetTable = vstack([allDatasetTable, datasetTable])
+                # Update the table with the datasetKey which is really just a counter
+                datasetTable['datasetKey'][:] = datasetKey
+                datasetTable['completed'][:] = True
+                allDatasetTable = vstack([allDatasetTable, datasetTable])
 
-               datasetTable.write(outputName, format='ascii.ecsv')
-               datasetTable.pprint(max_width=-1)
+                datasetTable.write(outputName, format='ascii.ecsv')
+                datasetTable.pprint(max_width=-1)
 
-               # Perform some clean up
-               if datasetTable['doProcess'].sum() != 0 and sumOfStatus == 0:
-                   os.remove('ref_cat.ecsv')
-                   os.remove('refcatalog.cat')
-                   #os.remove('*flt.fits')
-                   #os.remove('*flc.fits')
+                # Perform some clean up
+                if os.path.exists('ref_cat.ecsv'): os.remove('ref_cat.ecsv')
+                if os.path.exists('refcatalog.cat'): os.remove('refcatalog.cat')
+                for f in sorted(glob.glob('*fl?.fits')):
+                    os.remove(f)
 
-           # Catch anything that happens as this dataset will be considered a failure, but
-           # the processing of datasets should continue.  Generate sufficient output exception
-           # information so problems can be addressed.
-           except Exception:
-               exc_type, exc_value, exc_tb = sys.exc_info()
-               traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
-               print("TEST_RANDOM. Exception Dataset: ", dataset, "\n")
-               continue
+            # Catch anything that happens as this dataset will be considered a failure, but
+            # the processing of datasets should continue.  Generate sufficient output exception
+            # information so problems can be addressed.
+            except Exception:
+           
+                exc_type, exc_value, exc_tb = sys.exc_info()
+                traceback.print_exception(exc_type, exc_value, exc_tb, file=sys.stdout)
+                print("TEST_RANDOM. Exception Dataset: ", dataset, "\n")
+                continue
 
         # Write out the table
         allDatasetTable.write('resultsBigTest.ecsv', format='ascii.ecsv')
-        allDatasetTable.pprint(max_width=-1)
+        #allDatasetTable.pprint(max_width=-1)
 
         # Determine the percent success over all datasets processed
         percentSuccess = numSuccess/numAllDatasets

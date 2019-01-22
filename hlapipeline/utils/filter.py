@@ -108,10 +108,6 @@ def analyze_data(inputFileList, **kwargs):
 
     # Create an astropy table
     outputTable = Table(names=namesArray,dtype=dataType)
-    #outputTable['rms_ra'].unit = 'mas'
-    #outputTable['rms_dec'].unit = 'mas'
-    #outputTable['fit_rms'].unit = 'mas'
-    #print(outputTable.info())
 
     # Loop over the list of images to determine viability for alignment processing
     #
@@ -248,7 +244,7 @@ def analyze_data(inputFileList, **kwargs):
                              foundSources, catalogSources, matchSources, rms_x, rms_y, 
                              rms_ra, rms_dec, completed, fit_rms, total_rms, datasetKey, 
                              status, headerletFile])
-    outputTable.pprint(max_width=-1)
+    #outputTable.pprint(max_width=-1)
 
     return(outputTable)
 
