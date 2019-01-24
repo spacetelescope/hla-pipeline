@@ -124,6 +124,12 @@ class TestRandomAlignMosaic(BaseHLATest):
 
                 # Filtered datasets
                 if datasetTable['doProcess'].sum() == 0:
+                    # Update the table with the datasetKey which is really just a counter
+                    datasetTable['datasetKey'][:] = datasetKey
+                    datasetTable['completed'][:] = True
+                    datasetTable.write(outputName, format='ascii.ecsv')
+                    datasetTable.pprint(max_width=-1)
+
                     print("TEST_RANDOM. Filtered Dataset: ", dataset, "\n")
                     numAllDatasets -= 1;
                 # Datasets to process
