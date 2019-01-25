@@ -412,7 +412,10 @@ def match_default_fit(imglist, reference_catalog, print_fit_parameters=True):
     return fit_rms, fit_num
 
 
-def perform_iterative_alignment(extracted_sources,processList,reference_catalog,catalogName):
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def match_iterate_tolerance(extracted_sources,processList,reference_catalog,catalogName):
     """Iteratively determine best-fit solution.
 
     Parameters
