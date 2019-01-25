@@ -41,9 +41,9 @@ MIN_FIT_MATCHES = 6
 MAX_FIT_RMS = 10 # RMS now in mas, 1.0
 MAX_FIT_LIMIT = 1000 # Maximum RMS that a result is useful
 MAX_SOURCES_PER_CHIP = 250  # Maximum number of sources per chip to include in source catalog
-MAX_ITERATIONS = 10
-TOL_SCALE_FACTOR = 1.15#1.05
-TOL_START = 100.
+MAX_ITERATIONS = 10 # Maximum number of iteration steps for match_iterate_tolerance().
+TOL_SCALE_FACTOR = 1.15 #1.05 # Scale factor used to recalculate new tolerance value in match_iterate_tolerance().
+TOL_START = 100. # Initial tolerance value used at the start of match_iterate_tolerance().
 
 # Module-level dictionary contains instrument/detector-specific parameters used later on in the script.
 detector_specific_params = {"acs":
