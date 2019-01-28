@@ -11,11 +11,11 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib', \
-                'photutils', 'pyyaml', 'astroquery',\
-                'scipy', 'sphinx','sphinx_rtd_theme', \
-                'stsci_rtd_theme','stsci.tools',\
-                'stwcs','setuptools']
+requirements = ['Click>=6.0', 'astropy', 'scipy', 'matplotlib',
+                'photutils', 'python>=3.5', 'pyyaml', 'astroquery',
+                'scipy', 'sphinx','sphinx_rtd_theme',
+                'stsci_rtd_theme','stsci.tools',
+                'stwcs','setuptools', 'tweakwcs>=0.3.1']
 
 setup_requirements = ['pytest-runner', ]
 
@@ -29,10 +29,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
