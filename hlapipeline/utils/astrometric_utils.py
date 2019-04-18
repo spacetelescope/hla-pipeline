@@ -170,7 +170,17 @@ def create_astrometric_catalog(inputs, **pars):
 
     # perform query for this field-of-view
     ref_dict = get_catalog(ra, dec, sr=radius, catalog=catalog)
-    colnames = ('ra','dec', 'mag', 'objID', 'GaiaID')
+    colnames = ('RA','DEC', 'mag', 'objID', 'GaiaID')
+    cat_colnames = {}
+    for c in colnames:
+        found=False
+        for r in ref_dict.fieldnames:
+            if c.lower() == r.lower():
+                cat_colnames[c] = r
+                found=True
+        if not found:
+            cat_colnames[c] = None
+
     col_types = ('f8', 'f8', 'f4', 'U25', 'U25')
     ref_table = Table(names = colnames, dtype=col_types)
 
@@ -179,22 +189,22 @@ def create_astrometric_catalog(inputs, **pars):
     ref_table.meta['gaia_only'] = gaia_only
 
     # rename coordinate columns to be consistent with tweakwcs
-    ref_table.rename_column('ra', 'RA')
-    ref_table.rename_column('dec', 'DEC')
+    #ref_table.rename_column('ra', 'RA')
+    #ref_table.rename_column('dec', 'DEC')
 
     # extract just the columns we want...
     num_sources = 0
     for source in ref_dict:
-        if 'GAIAsourceID' in source:
+        if 'GAIAsourceID' in source or cat_colnames['GaiaID'] is not None:
             g = source['GAIAsourceID']
             if gaia_only and g.strip() is '':
                 continue
         else:
             g = -1  # indicator for no source ID extracted
-        r = float(source['ra'])
-        d = float(source['dec'])
+        r = float(source[cat_colnames['RA']])
+        d = float(source[cat_colnames['DEC']])
         m = -999.9  # float(source['mag'])
-        o = source['objID']
+        o = source[cat_colnames['objID']]
         num_sources += 1
         ref_table.add_row((r,d,m,o,g))
 
@@ -489,6 +499,20 @@ def extract_sources(img, **pars):
                 seg_table['xcentroid'] += seg_xoffset
                 seg_table['ycentroid'] += seg_yoffset
                 src_table.add_row(seg_table[max_row])
+            """
+            else:
+                detect_segm = detect_sources(detection_img, bkg_rms_mean, 
+                                            npixels=source_box,
+                                            filter_kernel=kernel)
+                cat = source_properties(detection_img, detect_segm)
+                detect_table = cat.to_table()
+                # Make column names consistent with IRAFStarFinder column names
+                detect_table.rename_column('source_sum', 'flux')
+                detect_table.rename_column('source_sum_err', 'flux_err')
+                detect_table['xcentroid'] += seg_xoffset
+                detect_table['ycentroid'] += seg_yoffset
+                src_table.add_row(detect_table[0]) 
+			"""
 
     else:
         cat = source_properties(img, segm)
